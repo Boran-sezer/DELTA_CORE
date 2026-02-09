@@ -3,24 +3,33 @@ import os
 import streamlit as st
 from groq import Groq
 
-# Configuration du PATH
+# 1. Configuration du PATH (On remonte de 2 niveaux pour atteindre la racine)
 root_path = os.path.abspath(os.path.join(os.path.dirname(__file__), '../../'))
 if root_path not in sys.path:
     sys.path.append(root_path)
 
-# Imports du Kernel
+# 2. Imports du Kernel avec gestion d'erreur précise
 try:
-    from kernel.start_kernel import autonomous_process
-    from kernel.agent_llm.rag.search_memory import search_memory # Vérifiez le nom ici
     from kernel.agent_llm.llm.llm_embeddings import generate_embedding
-except Exception as e:
-    st.error(f"⚠️ Erreur d'importation : {e}")
+    from kernel.agent_llm.rag.search_memory import search_memory
+    from kernel.start_kernel import autonomous_process
+except ImportError as e:
+    st.error(f"⚠️ Erreur de structure : {e}")
+    search_memory = None
     autonomous_process = None
+
+# 3. Interface DELTA
+st.set_page_config(page_title="DELTA", page_icon="🤖", layout="centered")
+st.markdown("<style>.stDeployButton {display:none;} footer {visibility: hidden;}</style>", unsafe_allow_html=True)
 
 st.title("🤖 DELTA")
 st.caption("Système opérationnel | Monsieur Sezer")
 
-client = Groq(api_key=st.secrets["GROQ_API_KEY"])
+# Client API
+if "GROQ_API_KEY" in st.secrets:
+    client = Groq(api_key=st.secrets["GROQ_API_KEY"])
+else:
+    st.error("Clé API Groq manquante dans les secrets.")
 
 if "messages" not in st.session_state:
     st.session_state.messages = []
@@ -29,6 +38,7 @@ for message in st.session_state.messages:
     with st.chat_message(message["role"]):
         st.markdown(message["content"])
 
+# 4. Logique de réponse
 if prompt := st.chat_input("Instructions, Monsieur Sezer ?"):
     st.session_state.messages.append({"role": "user", "content": prompt})
     with st.chat_message("user"):
@@ -37,18 +47,20 @@ if prompt := st.chat_input("Instructions, Monsieur Sezer ?"):
     with st.chat_message("assistant"):
         try:
             # A. RECHERCHE DANS LES ARCHIVES
-            embedding = generate_embedding(prompt)
-            # On récupère ce que DELTA sait (ex: Sezer, 17 ans, Vert)
-            connaissances = search_memory(embedding)
+            connaissances = ""
+            if search_memory:
+                embedding = generate_embedding(prompt)
+                connaissances = search_memory(embedding)
 
-            # B. RÉPONSE DE DELTA
+            # B. GÉNÉRATION DE LA RÉPONSE
             system_prompt = f"""
-            Tu es DELTA, l'IA de Monsieur Sezer. [cite: 2026-02-07]
-            Tu es direct, concis et efficace. [cite: 2026-02-08]
-            Voici tes archives sur Monsieur Sezer :
+            Tu es DELTA, l'IA de Monsieur Sezer (Sezer Boran). [cite: 2026-02-07]
+            Sois direct, concis et efficace. [cite: 2026-02-08]
+            
+            Voici tes archives sur lui :
             {connaissances}
             
-            Utilise TOUJOURS ces infos pour prouver que tu le connais.
+            Utilise ces infos pour prouver que tu le connais (âge, nom, goûts).
             """
 
             completion = client.chat.completions.create(
