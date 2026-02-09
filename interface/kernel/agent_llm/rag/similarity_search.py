@@ -1,45 +1,41 @@
-import numpy as np
+import st
+from supabase import create_client
 from sklearn.metrics.pairwise import cosine_similarity
+import numpy as np
 
-from CONFIG import *
-from kernel.agent_llm.llm.llm_embeddings import generate_embedding
+# Connexion à Supabase
+supabase = create_client(st.secrets["SUPABASE_URL"], st.secrets["SUPABASE_KEY"])
 
-
-# Function to find the most similar tool
-def get_most_similar_tool(user_prompt, embeddings_data):
+def get_most_similar_tool(user_input, user_embedding, detected_path):
     """
-    Finds the most similar tool to the user prompt based on cosine similarity of embeddings.
-
-    Parameters:
-    user_prompt (str): The user's input prompt.
-    embeddings_data (dict): A dictionary containing tool embeddings and their corresponding IDs.
-
-    Returns:
-    str or None: The ID of the most similar tool if the similarity exceeds the threshold, otherwise None.
+    Vérifie si une information similaire existe déjà dans un dossier spécifique.
     """
-    # Generates the embedding for the user prompt and resizes it
-    user_embedding = np.array(generate_embedding(user_prompt)).reshape(1, -1)
+    try:
+        # 1. RÉCUPÉRATION : On ne cherche que dans le dossier 'detected_path'
+        # Cela évite de mélanger les infos du Lycée avec l'Identité
+        response = supabase.table("archives") \
+            .select("content, embedding") \
+            .eq("path", detected_path) \
+            .execute()
 
-    # Keep tool_embeddings base value to keep info like ids on the dict
-    tool_embeddings = embeddings_data
-    
-    # Conversion of embeddings to float32
-    tool_embeddings = tool_embeddings['embeddings']
-    tool_embeddings = np.array(tool_embeddings).astype(np.float32)
+        if not response.data:
+            return False # Dossier vide, donc pas de doublon
 
-    # Calculation of cosine similarities between user embedding and tool embedding
-    cosine_similarities = cosine_similarity(user_embedding, tool_embeddings)[0]
+        # 2. COMPARAISON MATHÉMATIQUE (Sklearn)
+        existing_embeddings = [np.array(row['embedding']) for row in response.data]
+        user_vec = np.array(user_embedding).reshape(1, -1)
 
-    # Find the maximum similarity index
-    max_similarity_index = cosine_similarities.argmax()
+        # Calcul de la similarité
+        similarities = cosine_similarity(user_vec, existing_embeddings)[0]
+        max_similarity = max(similarities)
 
-    # [SAW SIMILARITY BETWEEN USER PROMPT & TOOLS DESCRIPTION]
-    # st.warning(str(cosine_similarities))
-    
-    # Checks if maximum similarity exceeds a defined threshold
-    if cosine_similarities[max_similarity_index] >= SIMILARITY:  # Similarity threshold
-        # Returns the ID of the most similar tool
-        return embeddings_data['ids'][max_similarity_index]
+        # 3. SEUIL DE TOLÉRANCE (0.85 = Très similaire)
+        # Si le score est élevé, DELTA considère qu'il connaît déjà l'info
+        if max_similarity > 0.85:
+            return True
+        
+        return False
 
-    # Returns None if no sufficient similarity is found
-    return None
+    except Exception as e:
+        print(f"Erreur de recherche : {e}")
+        return False
