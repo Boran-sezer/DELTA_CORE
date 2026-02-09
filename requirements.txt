@@ -1,0 +1,21 @@
+# Kernel Lib
+accelerate==0.34.2
+chromadb==0.5.11
+numpy==1.26.4
+ollama==0.4.7
+requests==2.32.3
+scikit-learn==1.6.1
+sounddevice==0.5.0
+soundfile==0.12.1
+streamlit==1.40.0
+transformers==4.48.0
+
+# Tools Lib
+nltk==3.9.1
+opencv-python==4.10.0.84
+PyAutoGUI==0.9.54
+pywhatkit==5.4
+
+# Voice Lib
+comtypes==1.1.10
+pyttsx3==2.90

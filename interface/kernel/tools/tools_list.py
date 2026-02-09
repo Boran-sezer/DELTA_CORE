@@ -1,0 +1,61 @@
+from CONFIG import LANGUAGE
+from kernel.tools.tools_functions.tools_response.hello_sir import hello
+from kernel.tools.tools_functions.pause_system import pause_running
+from kernel.tools.tools_functions.exit_system import stop_running
+from kernel.tools.tools_functions.tools_action.time import time_in_locale, date_in_locale
+from kernel.tools.tools_functions.tools_action.screenshot import screen
+from kernel.tools.tools_functions.tools_action.cam.screen_cam import screen_with_cam
+from kernel.tools.tools_functions.tools_action.take_note import vocal_note
+from kernel.tools.tools_functions.tools_action.web_search.search_webs import search_ytb, search_google, search_wikipedia, search_bing
+
+
+tools = {
+    "hello": {"description": "dit bonjour pour saluer" if LANGUAGE == 'fr' else 
+              "says hello to greet", 
+              "function": hello},
+
+    "pause_running": {"description": "met en pause le système, mode pause" if LANGUAGE == 'fr' else 
+                     "pauses the system, pause mode", 
+                     "function": pause_running},
+
+    "exit_system": {"description": "arrête le système, met à l'arrêt, stop tout" if LANGUAGE == 'fr' else 
+                    "shut down the system, shut down, stop everything", 
+                    "function": stop_running},
+
+    "time_in_locale": {"description": "il est quelle heure" if LANGUAGE == 'fr' else 
+                       "what time is it", 
+                       "function": time_in_locale},
+
+    "date_in_locale": {"description": "quelle est la date actuelle" if LANGUAGE == 'fr' else 
+                       "what is the current date", 
+                       "function": date_in_locale},
+
+    "screen_with_cam": {"description": "screen avec la caméra" if LANGUAGE == 'fr' else 
+                        "screen with the camera", 
+                        "function": screen_with_cam},
+
+    "screen": {"description": "prends un screenshot, prends une capture d'écran" if LANGUAGE == 'fr' else 
+               "take a screenshot", 
+               "function": screen},
+
+    "vocal_note": {"description": "prends note" if LANGUAGE == 'fr' else 
+                   "take note", 
+                   "function": vocal_note},
+
+    "search_ytb": {"description": "recherche sur youtube, cherche sur youtube" if LANGUAGE == 'fr' else 
+                   "search on youtube", 
+                   "function": search_ytb},
+
+    "search_google": {"description": "cherche sur google, recherche sur google" if LANGUAGE == 'fr' else 
+                      "search on google", 
+                      "function": search_google},
+
+    "search_wikipedia": {"description": "cherche sur wikipédia, recherche sur wikipédia" if LANGUAGE == 'fr' else 
+                         "search on wikipedia", 
+                         "function": search_wikipedia},
+
+    "search_bing": {"description": "cherche sur bing, recherche sur bing" if LANGUAGE == 'fr' else 
+                    "search on bing", 
+                    "function": search_bing},
+
+}
