@@ -1,30 +1,24 @@
 import streamlit as st
-from supabase import create_client
+# Assurez-vous que ces imports pointent vers les bons fichiers RAG/LLM
+from kernel.agent_llm.rag.similarity_search import get_most_similar_tool
+from kernel.agent_llm.llm.llm_embeddings import generate_embedding
 
-def get_supabase():
-    """Établit la connexion avec votre projet Supabase"""
-    url = st.secrets["SUPABASE_URL"]
-    key = st.secrets["SUPABASE_KEY"]
-    return create_client(url, key)
-
-def delta_memory_save(info, dossier="Général"):
+def autonomous_process(user_input):
     """
-    Sauvegarde flexible : DELTA choisit le dossier (ex: 'Identité', 'Lycée')
+    Logique de décision de DELTA.
     """
     try:
-        supabase = get_supabase()
-        data = {
-            "folder_name": dossier,
-            "content": info,
-            "metadata": {"status": "memory_active"}
-        }
-        supabase.table("archives").insert(data).execute()
-        return True
+        # 1. Vérification de similarité (Logique LUX)
+        # similar_id = get_most_similar_tool(user_input, ...) 
+        
+        # 2. Classification simple pour le test
+        if any(word in user_input.lower() for word in ["sezer", "nom", "identité"]):
+            folder = "Identité"
+        elif any(word in user_input.lower() for word in ["lycée", "cours"]):
+            folder = "Lycée"
+        else:
+            folder = "Général"
+            
+        return f"Classé dans : {folder}"
     except Exception as e:
-        st.error(f"Erreur de mémoire : {e}")
-        return False
-
-def start_DELTA():
-    """Initialise l'intelligence de DELTA"""
-    st.success("Système DELTA initialisé avec accès Cloud.")
-    # C'est ici que l'agent LLM est chargé
+        return f"Erreur autonomie : {e}"
