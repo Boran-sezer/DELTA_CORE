@@ -1,4 +1,4 @@
-import st
+import streamlit as st
 from supabase import create_client
 from sklearn.metrics.pairwise import cosine_similarity
 import numpy as np
