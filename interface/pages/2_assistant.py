@@ -6,11 +6,13 @@ from groq import Groq
 # 1. Configuration du chemin pour le noyau (Kernel)
 sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '../../')))
 
-# 2. Imports des fonctions système
+# À remplacer dans 2_assistant.py
 try:
     from kernel.start_kernel import autonomous_process
-except ImportError:
-    st.error("Système de mémorisation indisponible.")
+except Exception as e:
+    st.error(f"Détail de l'erreur d'import : {e}")
+    # Affiche le chemin où Python cherche pour vérifier
+    st.write(f"Chemin actuel : {sys.path}") 
     autonomous_process = lambda x: "Erreur Système"
 
 # 3. Configuration de l'interface minimaliste
