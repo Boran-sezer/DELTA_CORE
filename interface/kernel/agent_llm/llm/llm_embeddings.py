@@ -1,15 +1,17 @@
-import streamlit as st
-from groq import Groq
+from sentence_transformers import SentenceTransformer
+
+# Initialisation du modèle (chargé une seule fois en cache)
+model = SentenceTransformer('all-MiniLM-L6-v2')
 
 def generate_embedding(text):
-    """Génère des vecteurs via Groq pour la mémoire de DELTA"""
+    """
+    Génère un vecteur numérique (embedding) pour le texte donné.
+    """
     try:
-        client = Groq(api_key=st.secrets["GROQ_API_KEY"])
-        response = client.embeddings.create(
-            model="nomic-embed-text-v1.5",
-            input=text
-        )
-        return response.data[0].embedding
+        # Génération du vecteur
+        embedding = model.encode(text)
+        # Conversion en liste pour Supabase
+        return embedding.tolist()
     except Exception as e:
-        st.error(f"Erreur d'initialisation : {e}")
+        print(f"Erreur d'embedding : {e}")
         return None
