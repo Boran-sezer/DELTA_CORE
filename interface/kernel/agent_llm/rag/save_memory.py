@@ -1,25 +1,26 @@
 import streamlit as st
 from supabase import create_client
 
-# Connexion sécurisée à votre base de données
+# Initialisation
 supabase = create_client(st.secrets["SUPABASE_URL"], st.secrets["SUPABASE_KEY"])
 
 def save_to_memory(content, embedding, path):
-    """
-    Enregistre une nouvelle information dans l'arbre invisible de Supabase.
-    """
     try:
+        # Transformation du vecteur en format compatible SQL Vector
+        # On s'assure que c'est une liste de floats
+        formatted_embedding = [float(x) for x in embedding]
+
         data = {
-            "content": content,
-            "embedding": embedding,
-            "path": path, # Le dossier invisible choisi par l'IA
+            "content": str(content),
+            "embedding": formatted_embedding, 
+            "path": str(path)
         }
         
-        # Insertion dans la table 'archives'
+        # Envoi à Supabase
         response = supabase.table("archives").insert(data).execute()
         
-        return True if response.data else False
-
+        return True
     except Exception as e:
-        print(f"Erreur de sauvegarde Supabase : {e}")
+        # Affiche l'erreur exacte dans l'interface pour le débogage final
+        st.error(f"Erreur technique Supabase : {e}")
         return False
