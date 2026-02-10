@@ -1,7 +1,0 @@
-streamlit
-groq
-requests
-numpy
-scikit-learn
-sentence-transformers
-supabase
