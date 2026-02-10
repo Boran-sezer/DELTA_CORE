@@ -40,12 +40,12 @@ if prompt := st.chat_input("Instructions, Monsieur Sezer ?"):
 
     with st.chat_message("assistant"):
         try:
-            # A. RECHERCHE RAG ÉVOLUÉE (Multi-Query)
+            # A. RECHERCHE RAG ARBORESCENTE (Multi-Query + Path Exploration)
             full_context = ""
             if search_memory:
-                # Agent de raffinement : transforme "quel âge a mon frère" en "Bedran, âge, frère"
+                # Agent de raffinement : identifie les branches potentielles à explorer
                 refiner = client.chat.completions.create(
-                    messages=[{"role": "user", "content": f"Pour la question : '{prompt}', donne moi uniquement les 3 mots-clés les plus importants pour fouiller une base de données, séparés par des virgules."}],
+                    messages=[{"role": "user", "content": f"Pour : '{prompt}', donne 3 chemins de dossiers probables (ex: Archives/Social/Famille) et 2 mots-clés, séparés par des virgules."}],
                     model="llama-3.1-8b-instant",
                 )
                 keywords = refiner.choices[0].message.content.split(',')
@@ -58,17 +58,21 @@ if prompt := st.chat_input("Instructions, Monsieur Sezer ?"):
                     if res:
                         context_results.append(res)
                 
+                # Fusion unique pour éviter les répétitions
                 full_context = "\n".join(list(set(context_results)))
 
-            # B. RÉPONSE PERSONNALISÉE (Mode Jarvis)
+            # B. RÉPONSE JARVIS (Synthèse de l'Arbre)
             system_prompt = f"""
-            Tu es DELTA, l'IA de Monsieur Sezer (Sezer Boran). [cite: 2026-02-07]
-            Sois direct, concis et Jarvis-like. [cite: 2026-02-08]
+            Tu es DELTA, l'intelligence de Monsieur Sezer (Sezer Boran). [cite: 2026-02-07]
+            Ton ton est direct, concis et Jarvis-like. [cite: 2026-02-08]
             
-            DONNÉES MÉMOIRE :
+            BRANCHES DE MÉMOIRE EXPLORÉES :
             {full_context}
             
-            CONSIGNE : Si l'utilisateur parle de son 'frère' et que la mémoire contient 'BEDRAN', fais le lien immédiatement. [cite: 2026-02-10]
+            CONSIGNES :
+            1. Utilise les fragments pour répondre avec certitude.
+            2. Si un nom (ex: Bedran) est lié à une relation (ex: Frère) dans l'arbre, fusionne l'info. [cite: 2026-02-10]
+            3. Ne mentionne pas que tu cherches dans tes dossiers, réponds naturellement.
             """
 
             chat_completion = client.chat.completions.create(
@@ -82,7 +86,7 @@ if prompt := st.chat_input("Instructions, Monsieur Sezer ?"):
             response = chat_completion.choices[0].message.content
             st.markdown(response)
             
-            # C. MÉMORISATION (Via Kernel Multi-Agent)
+            # C. MÉMORISATION (Mise à jour de l'Arbre Infini)
             status_mem = "Mémoire inactive"
             if autonomous_process:
                 status_mem = autonomous_process(prompt)
@@ -91,4 +95,4 @@ if prompt := st.chat_input("Instructions, Monsieur Sezer ?"):
             st.session_state.messages.append({"role": "assistant", "content": response})
 
         except Exception as e:
-            st.error(f"Erreur : {e}")
+            st.error(f"Erreur de traitement : {e}")
