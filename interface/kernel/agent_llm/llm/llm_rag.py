@@ -6,38 +6,37 @@ from kernel.agent_llm.llm.llm_embeddings import generate_embedding
 
 def autonomous_process(prompt, *args, **kwargs):
     """
-    Système DELTA v6.5 : Cartographie Dynamique et Extraction d'Entités.
-    Sépare Monsieur Sezer des tiers de manière automatique.
+    Système DELTA v6.6 : Vérité Absolue Monsieur Sezer.
+    Verrouille l'identité et empêche les hallucinations entre profils.
     """
     try:
         api_key = st.secrets["GROQ_API_KEY"]
         groq_client = Groq(api_key=api_key)
         
-        # --- AGENT 1 : LE FILTRE (Détection de Mots-Clés) ---
-        # On force le passage si un mot lié à l'identité ou aux goûts est présent [cite: 2026-02-10]
-        keywords = ["ans", "âge", "aime", "adore", "préfère", "frère", "ami", "famille", "chocolat", "sezer"]
+        # --- AGENT 1 : LE FILTRE (Mots-Clés de Vie) ---
+        keywords = ["ans", "âge", "aime", "adore", "préfère", "frère", "famille", "chocolat", "sezer", "bedran"]
         if not any(word in prompt.lower() for word in keywords):
             return "Interaction simple (non archivée)"
 
-        # --- AGENT 2 : LE CARTOGRAPHE DYNAMIQUE ---
-        # Ce prompt force l'IA à trouver le sujet de la phrase pour choisir le bon chemin [cite: 2026-02-10]
+        # --- AGENT 2 : LE CARTOGRAPHE (Logique de Vérité) ---
+        # On force l'IA à être factuelle et à ne pas mélanger les goûts [cite: 2026-02-10]
         tree_prompt = f"""
-        Tu es le cartographe universel de DELTA. Donnée : "{prompt}"
+        Tu es le cartographe de DELTA. Donnée : "{prompt}"
         
-        RÈGLES D'ORIENTATION :
-        1. SUJET = MONSIEUR SEZER : (Si "Je", "Moi", "Mon âge", "Mes goûts")
+        RÈGLES D'ISOLATION ET DE VÉRITÉ :
+        1. "JE/MOI" = Monsieur Sezer uniquement. 
            - Age -> Archives/Utilisateur/Identite/Age
            - Gouts -> Archives/Utilisateur/Gouts/Alimentaire
         
-        2. SUJET = TIERS : (Si un prénom est cité ou "Mon frère", "Mon ami")
-           - EXTRAIS le prénom (ex: Bedran, Lucas).
-           - Age -> Archives/Social/Famille/[Nom]/Age
-           - Gouts -> Archives/Social/Famille/[Nom]/Gouts
+        2. "IL/BEDRAN" = Social/Famille/Bedran.
+           - Age -> Archives/Social/Famille/Bedran/Age
+           - Gouts -> Archives/Social/Famille/Bedran/Gouts
         
-        CONSIGNE : Ne mélange jamais les chemins 'Utilisateur' et 'Social'. [cite: 2026-02-10]
+        3. INTERDICTION : Si Bedran aime le chocolat noir, n'écris JAMAIS que Monsieur Sezer l'aime aussi. 
+           Chaque fait doit être strictement rattaché à son sujet. [cite: 2026-02-10]
         
         RÉPONDS UNIQUEMENT EN JSON :
-        {{ "fragments": [ {{"content": "Sujet + info précise", "path": "Archives/..."}} ] }}
+        {{ "fragments": [ {{"content": "Sujet exact + info factuelle", "path": "Archives/..."}} ] }}
         """
 
         chat_completion = groq_client.chat.completions.create(
@@ -51,14 +50,12 @@ def autonomous_process(prompt, *args, **kwargs):
         fragments = data.get("fragments", [])
         results = []
 
-        # --- SAUVEGARDE & UPSERT ---
+        # --- SAUVEGARDE & UPSERT SANS FILTRE DE LONGUEUR ---
         for item in fragments:
             content, path = item.get("content"), item.get("path")
-            
-            # On génère l'embedding pour la recherche vectorielle future
             embedding = generate_embedding(content)
             
-            # L'Upsert se base sur le 'path' unique pour écraser ou créer [cite: 2026-02-10]
+            # L'Upsert se base sur le 'path' pour écraser l'ancienne donnée [cite: 2026-02-10]
             if save_to_memory(content, embedding, path):
                 results.append(path)
 
