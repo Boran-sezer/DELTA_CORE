@@ -18,7 +18,7 @@ def autonomous_process(prompt, *args, **kwargs):
         filter_prompt = f"""
         ANALYSE CRITIQUE : "{prompt}"
         Si la phrase contient : âge, nom, préférence, goût ou famille de Monsieur Sezer, 
-        réponds 'MEMO' peu importe si c'est une répétition ou non. [cite: 2026-02-10]
+        réponds EXCLUSIVEMENT 'MEMO' peu importe si c'est une répétition ou non. [cite: 2026-02-10]
         Réponse unique : 'MEMO' ou 'IGNORE'.
         """
         
@@ -28,7 +28,9 @@ def autonomous_process(prompt, *args, **kwargs):
             temperature=0
         )
         
-        if "MEMO" not in check_task.choices[0].message.content.upper():
+        decision = check_task.choices[0].message.content.upper()
+        
+        if "MEMO" not in decision:
             return "Interaction simple (non archivée)"
 
         # --- AGENT 2 : LE CARTOGRAPHE (Tiroirs Rigides v2) ---
@@ -62,7 +64,7 @@ def autonomous_process(prompt, *args, **kwargs):
         for item in fragments:
             content, path = item.get("content"), item.get("path")
             
-            # Plus aucune barrière de sécurité, on enregistre tout ce que l'IA valide [cite: 2026-02-10]
+            # Plus aucune barrière de sécurité sur la longueur, on enregistre tout [cite: 2026-02-10]
             embedding = generate_embedding(content)
             
             if save_to_memory(content, embedding, path):
