@@ -6,37 +6,36 @@ from kernel.agent_llm.llm.llm_embeddings import generate_embedding
 
 def autonomous_process(prompt, *args, **kwargs):
     """
-    Système DELTA v6.6 : Vérité Absolue Monsieur Sezer.
-    Verrouille l'identité et empêche les hallucinations entre profils.
+    Système DELTA v6.7 : Identité Suprême & Distinction Nominale.
+    Gère Boran (Prénom), Sezer (Nom) et les entités tierces (Bedran, Zilan).
     """
     try:
         api_key = st.secrets["GROQ_API_KEY"]
         groq_client = Groq(api_key=api_key)
         
-        # --- AGENT 1 : LE FILTRE (Mots-Clés de Vie) ---
-        keywords = ["ans", "âge", "aime", "adore", "préfère", "frère", "famille", "chocolat", "sezer", "bedran"]
+        # --- AGENT 1 : LE FILTRE (Mots-Clés Étendus) ---
+        keywords = ["ans", "âge", "aime", "adore", "préfère", "frère", "sœur", "famille", "chocolat", "boran", "sezer", "bedran", "zilan"]
         if not any(word in prompt.lower() for word in keywords):
             return "Interaction simple (non archivée)"
 
-        # --- AGENT 2 : LE CARTOGRAPHE (Logique de Vérité) ---
-        # On force l'IA à être factuelle et à ne pas mélanger les goûts [cite: 2026-02-10]
+        # --- AGENT 2 : LE CARTOGRAPHE (Précision Nominale) ---
         tree_prompt = f"""
         Tu es le cartographe de DELTA. Donnée : "{prompt}"
         
-        RÈGLES D'ISOLATION ET DE VÉRITÉ :
-        1. "JE/MOI" = Monsieur Sezer uniquement. 
-           - Age -> Archives/Utilisateur/Identite/Age
-           - Gouts -> Archives/Utilisateur/Gouts/Alimentaire
+        RÈGLES D'IDENTITÉ STRICTES :
+        1. UTILISATEUR : Ton créateur s'appelle Boran SEZER. 
+           - Prénom -> Archives/Utilisateur/Identite/Prenom
+           - Nom -> Archives/Utilisateur/Identite/Nom
+           - Ses goûts -> Archives/Utilisateur/Gouts/Alimentaire
         
-        2. "IL/BEDRAN" = Social/Famille/Bedran.
-           - Age -> Archives/Social/Famille/Bedran/Age
-           - Gouts -> Archives/Social/Famille/Bedran/Gouts
+        2. TIERS : Tu DOIS extraire le prénom (ex: Bedran, Zilan) pour le chemin. [cite: 2026-02-10]
+           - Archives/Social/Famille/[Prenom]/Age
+           - Archives/Social/Famille/[Prenom]/Gouts
         
-        3. INTERDICTION : Si Bedran aime le chocolat noir, n'écris JAMAIS que Monsieur Sezer l'aime aussi. 
-           Chaque fait doit être strictement rattaché à son sujet. [cite: 2026-02-10]
+        3. VÉRITÉ : Ne confonds jamais les goûts de Boran avec ceux de sa famille. [cite: 2026-02-10]
         
         RÉPONDS UNIQUEMENT EN JSON :
-        {{ "fragments": [ {{"content": "Sujet exact + info factuelle", "path": "Archives/..."}} ] }}
+        {{ "fragments": [ {{"content": "Sujet exact + info", "path": "Archives/..."}} ] }}
         """
 
         chat_completion = groq_client.chat.completions.create(
@@ -50,12 +49,12 @@ def autonomous_process(prompt, *args, **kwargs):
         fragments = data.get("fragments", [])
         results = []
 
-        # --- SAUVEGARDE & UPSERT SANS FILTRE DE LONGUEUR ---
+        # --- SAUVEGARDE ET UPSERT ---
         for item in fragments:
             content, path = item.get("content"), item.get("path")
             embedding = generate_embedding(content)
             
-            # L'Upsert se base sur le 'path' pour écraser l'ancienne donnée [cite: 2026-02-10]
+            # L'Upsert se base sur le path unique [cite: 2026-02-10]
             if save_to_memory(content, embedding, path):
                 results.append(path)
 
