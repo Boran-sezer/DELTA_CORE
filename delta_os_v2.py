@@ -1,50 +1,56 @@
 # ================================================================
-# DELTA OS — J.A.R.V.I.S. COGNITIVE SYSTEM (STABLE FINAL)
+# DELTA OS - TRUE JARVIS COGNITIVE SYSTEM (INTEGRAL & CORRECTED)
 # ================================================================
 
 import streamlit as st
 from groq import Groq
 from supabase import create_client, Client
-import streamlit.components.v1 as components
 import json
-from datetime import datetime
-import pytz
+from datetime import datetime, timedelta
+from typing import Dict, List, Any, Optional, Tuple
+import time
+import hashlib
 
 # ================================================================
-# CONFIG STREAMLIT
+# CONFIGURATION
 # ================================================================
 
 st.set_page_config(
-    page_title="J.A.R.V.I.S.",
+    page_title="JARVIS - Delta OS",
     page_icon="🔷",
     layout="wide",
     initial_sidebar_state="collapsed"
 )
 
+# Style Tony Stark
 st.markdown("""
 <style>
-[data-testid="stSidebar"], header {display:none}
-body {
-    background: radial-gradient(circle at top, #0a0f1e, #05070f);
-    font-family: 'Courier New', monospace;
-}
-.stChatMessage {
-    background: rgba(30,144,255,0.06);
-    border-left: 3px solid #1E90FF;
-    border-radius: 8px;
-    padding: 14px;
-}
+    [data-testid='stSidebar'], header {display:none}
+    body {
+        background: linear-gradient(135deg, #0a0a0f 0%, #1a1a2e 50%, #0f0f1e 100%);
+        font-family: 'Courier New', monospace;
+    }
+    .main {background: transparent;}
+    .stChatMessage {
+        background: rgba(30, 144, 255, 0.05);
+        border-left: 3px solid #1E90FF;
+        border-radius: 8px;
+        padding: 15px;
+        margin: 10px 0;
+    }
+    h1 {
+        color: #1E90FF;
+        text-shadow: 0 0 10px #1E90FF;
+        font-family: 'Courier New', monospace;
+    }
 </style>
 """, unsafe_allow_html=True)
 
 # ================================================================
-# JARVIS CORE
+# JARVIS COGNITIVE ARCHITECTURE
 # ================================================================
 
 class JARVISCognitiveSystem:
-
-    VERSION = "2.2"
-
     def __init__(self):
         self.supabase: Client = create_client(
             st.secrets["supabase"]["url"],
@@ -52,271 +58,195 @@ class JARVISCognitiveSystem:
         )
         self.groq = Groq(api_key=st.secrets["groq"]["api_key"])
         self.owner = "boran"
+        self._working_memory_cache = []
         self._semantic_cache = {}
 
-    # ============================================================
-    # TIME / DATE
-    # ============================================================
-
-    def get_datetime_context(self):
-        tz = pytz.timezone("Europe/Paris")
-        now = datetime.now(tz)
-        return {
-            "date": now.strftime("%Y-%m-%d"),
-            "time": now.strftime("%H:%M:%S"),
-            "weekday": now.strftime("%A")
+    def update_working_memory(self, user_message: str, assistant_response: str):
+        importance = self._calculate_importance(user_message)
+        interaction = {
+            "user": user_message,
+            "assistant": assistant_response,
+            "timestamp": datetime.utcnow().isoformat(),
+            "importance": importance
         }
-
-    # ============================================================
-    # MEMORY FILTER
-    # ============================================================
-
-    def is_memory_worthy(self, analysis: dict) -> bool:
-        importance = analysis.get("importance_score", 0)
-        has_facts = bool(analysis.get("semantic_facts"))
-        return importance >= 0.6 or has_facts
-
-    # ============================================================
-    # SEMANTIC MEMORY (CUMULATIVE)
-    # ============================================================
-
-    def store_semantic_fact(self, entity, fact_type, fact, confidence=0.8):
-        entity = entity.lower().strip()
-        fact_type = fact_type.lower().strip()
-
-        res = self.supabase.table("jarvis_semantic_memory") \
-            .select("*") \
-            .eq("owner", self.owner) \
-            .eq("entity", entity) \
-            .eq("fact_type", fact_type) \
-            .execute()
-
-        if res.data:
-            row = res.data[0]
-            try:
-                current = json.loads(row["fact"])
-                if fact not in current:
-                    current.append(fact)
-            except Exception:
-                current = [row["fact"], fact]
-
-            self.supabase.table("jarvis_semantic_memory").update({
-                "fact": json.dumps(current),
-                "confidence": max(row["confidence"], confidence),
-                "updated_at": datetime.utcnow().isoformat()
-            }).eq("id", row["id"]).execute()
-        else:
-            self.supabase.table("jarvis_semantic_memory").insert({
+        self._working_memory_cache.append(interaction)
+        
+        try:
+            self.supabase.table("jarvis_working_memory").insert({
                 "owner": self.owner,
-                "entity": entity,
+                "user_message": user_message,
+                "assistant_response": assistant_response,
+                "timestamp": interaction['timestamp'],
+                "importance": importance
+            }).execute()
+        except: pass
+
+    def _calculate_importance(self, message: str) -> float:
+        imp = 0.5
+        keywords = ['important', 'projet', 'urgent', 'rappel', 'delta']
+        if any(kw in message.lower() for kw in keywords): imp += 0.2
+        if len(message) > 100: imp += 0.1
+        return min(imp, 1.0)
+
+    def store_semantic_fact(self, entity, fact_type, fact, confidence=0.9):
+        entity_norm = entity.lower().strip()
+        try:
+            self.supabase.table("jarvis_semantic_memory").upsert({
+                "owner": self.owner,
+                "entity": entity_norm,
                 "fact_type": fact_type,
-                "fact": json.dumps([fact]),
+                "fact": fact,
                 "confidence": confidence,
-                "created_at": datetime.utcnow().isoformat(),
                 "updated_at": datetime.utcnow().isoformat()
             }).execute()
+            self._semantic_cache.setdefault(entity_norm, {})[fact_type] = fact
+        except: pass
 
-        self._semantic_cache.setdefault(entity, {})[fact_type] = fact
-
-    def recall_semantic_facts(self, entity):
-        entity = entity.lower().strip()
-        if entity in self._semantic_cache:
-            return self._semantic_cache[entity]
-
-        res = self.supabase.table("jarvis_semantic_memory") \
-            .select("*") \
-            .eq("owner", self.owner) \
-            .eq("entity", entity) \
-            .execute()
-
-        facts = {}
-        for r in res.data:
-            try:
-                facts[r["fact_type"]] = json.loads(r["fact"])
-            except Exception:
-                facts[r["fact_type"]] = r["fact"]
-
-        self._semantic_cache[entity] = facts
-        return facts
-
-    # ============================================================
-    # GEOLOCATION (BROWSER)
-    # ============================================================
-
-    def get_browser_location(self):
-        return components.html("""
-        <script>
-        navigator.geolocation.getCurrentPosition(
-            (pos) => {
-                document.body.innerText = JSON.stringify({
-                    lat: pos.coords.latitude,
-                    lon: pos.coords.longitude,
-                    accuracy: pos.coords.accuracy
-                });
-            },
-            () => {
-                document.body.innerText = "";
-            }
-        );
-        </script>
-        """, height=0)
-
-    # ============================================================
-    # ANALYSIS
-    # ============================================================
-
-    def analyze_message(self, message: str) -> dict:
-        dt = self.get_datetime_context()
-
-        prompt = f"""
-Tu es le système cognitif de JARVIS.
-
-DATE : {dt['date']}
-HEURE : {dt['time']}
-JOUR : {dt['weekday']}
-
-RÈGLES STRICTES :
-- Ne mémorise PAS les questions simples
-- Ne mémorise PAS les hésitations
-- Reformule toujours positivement
-- Aucun fait vague
-
-MESSAGE :
-"{message}"
-
-RÉPONDS EN JSON STRICT :
-
-{{
- "semantic_facts": [],
- "importance_score": 0.0
-}}
-"""
-
+    def recall_semantic_facts(self, entity=None) -> Dict:
+        entity_norm = entity.lower().strip() if entity else self.owner
+        if entity_norm in self._semantic_cache: return self._semantic_cache[entity_norm]
         try:
-            r = self.groq.chat.completions.create(
+            res = self.supabase.table("jarvis_semantic_memory").select("*").eq("owner", self.owner).eq("entity", entity_norm).execute()
+            facts = {row['fact_type']: row['fact'] for row in res.data}
+            self._semantic_cache[entity_norm] = facts
+            return facts
+        except: return {}
+
+    def recall_recent_episodes(self, days=7) -> List[Dict]:
+        cutoff = (datetime.utcnow() - timedelta(days=days)).isoformat()
+        try:
+            res = self.supabase.table("jarvis_episodic_memory").select("*").eq("owner", self.owner).gte("timestamp", cutoff).order("importance", desc=True).limit(5).execute()
+            return res.data
+        except: return []
+
+    def learn_pattern(self, pattern_type, pattern_data):
+        try:
+            self.supabase.table("jarvis_procedural_memory").insert({
+                "owner": self.owner, "pattern_type": pattern_type, "pattern_data": json.dumps(pattern_data), "strength": 0.5
+            }).execute()
+        except: pass
+
+    def detect_patterns(self) -> List[Dict]:
+        try:
+            res = self.supabase.table("jarvis_procedural_memory").select("*").eq("owner", self.owner).gte("strength", 0.5).execute()
+            return res.data
+        except: return []
+
+    def analyze_message(self, message: str) -> Dict:
+        facts = self.recall_semantic_facts()
+        prompt = f"Analyse ce message de {self.owner}: '{message}'. Contexte: {json.dumps(facts)}. Réponds en JSON strict avec semantic_facts, episodic_event, procedural_pattern, importance_score, anticipation."
+        try:
+            res = self.groq.chat.completions.create(
                 model="llama-3.3-70b-versatile",
-                messages=[
-                    {"role": "system", "content": "Analyse cognitive avancée"},
-                    {"role": "user", "content": prompt}
-                ],
-                temperature=0,
+                messages=[{"role": "system", "content": "Analyseur cognitif JSON."}, {"role": "user", "content": prompt}],
                 response_format={"type": "json_object"}
             )
-            return json.loads(r.choices[0].message.content)
-        except Exception:
-            return {"semantic_facts": [], "importance_score": 0.0}
+            return json.loads(res.choices[0].message.content)
+        except: return {"semantic_facts": [], "importance_score": 0.5}
 
-  def process_and_learn(self, message: str):
+    def process_and_learn(self, message: str):
         analysis = self.analyze_message(message)
         
-        # Vérification de sécurité pour éviter le KeyError
-        if not self.is_memory_worthy(analysis):
-            return
-            
-        facts = analysis.get("semantic_facts", [])
-        
+        # 1. Faits Sémantiques (Correction KeyError)
+        facts = analysis.get('semantic_facts', [])
         for fact in facts:
-            # On utilise .get() pour éviter le crash si une clé manque
             entity = fact.get("entity") or fact.get("entité") or "boran"
-            fact_type = fact.get("fact_type") or fact.get("type") or "info"
-            fact_val = fact.get("fact") or fact.get("valeur") or ""
+            f_type = fact.get("fact_type") or fact.get("type") or "info"
+            f_val = fact.get("fact") or fact.get("valeur") or ""
+            if f_val:
+                self.store_semantic_fact(entity, f_type, f_val, fact.get("confidence", 0.9))
+        
+        # 2. Événement Épisodique
+        ep = analysis.get('episodic_event', {})
+        if ep.get('should_store'):
+            try:
+                self.supabase.table("jarvis_episodic_memory").insert({
+                    "owner": self.owner, "event_type": ep.get('event_type', 'general'),
+                    "description": ep.get('description', message[:100]), "importance": ep.get('importance', 0.7)
+                }).execute()
+            except: pass
+
+        # 3. Patterns Procéduraux
+        pat = analysis.get('procedural_pattern', {})
+        if pat.get('detected'):
+            self.learn_pattern(pat.get('pattern_type'), pat.get('pattern_data', {}))
             
-            if fact_val: # On ne stocke que s'il y a un contenu
-                self.store_semantic_fact(
-                    entity,
-                    fact_type,
-                    fact_val,
-                    fact.get("confidence", 0.8)
-                )
+        return analysis
+
+    def get_full_context(self) -> str:
+        parts = []
+        facts = self.recall_semantic_facts()
+        if facts: parts.append(f"PROFIL: {json.dumps(facts)}")
+        episodes = self.recall_recent_episodes()
+        if episodes: parts.append(f"ÉVÉNEMENTS: {[e['description'] for e in episodes]}")
+        return "\n".join(parts)
 
 # ================================================================
-# SAFE INIT (ANTI-ATTRIBUTEERROR)
+# INTERFACE & LOGIQUE DE CHAT
 # ================================================================
 
-if (
-    "jarvis" not in st.session_state
-    or not hasattr(st.session_state.jarvis, "get_datetime_context")
-    or getattr(st.session_state.jarvis, "VERSION", None) != JARVISCognitiveSystem.VERSION
-):
+if "jarvis" not in st.session_state:
     st.session_state.jarvis = JARVISCognitiveSystem()
 
 jarvis = st.session_state.jarvis
-dt = jarvis.get_datetime_context()
-
-# ================================================================
-# UI
-# ================================================================
 
 st.markdown("# 🔷 J.A.R.V.I.S.")
-st.caption(f"{dt['weekday']} — {dt['date']} — {dt['time']}")
-
-# ================================================================
-# CHAT
-# ================================================================
+st.caption("Architecture Cognitive Contextuelle v3.0")
 
 if "messages" not in st.session_state:
-    st.session_state.messages = [{
-        "role": "assistant",
-        "content": "Tous les systèmes sont opérationnels, Monsieur."
-    }]
+    st.session_state.messages = [{"role": "assistant", "content": "Bonjour Monsieur Sezer. Tous les systèmes sont opérationnels."}]
 
-for m in st.session_state.messages:
-    with st.chat_message(m["role"]):
-        st.markdown(m["content"])
+for msg in st.session_state.messages:
+    with st.chat_message(msg["role"]): st.markdown(msg["content"])
 
 if user_input := st.chat_input("Monsieur ?"):
-
-    with st.chat_message("user"):
-        st.markdown(user_input)
+    with st.chat_message("user"): st.markdown(user_input)
     st.session_state.messages.append({"role": "user", "content": user_input})
 
-    # Silent geolocation
-    loc_raw = jarvis.get_browser_location()
+    # --- CYCLE COGNITIF ---
+    with st.spinner("🧠 Cycle cognitif..."):
+        learning_result = jarvis.process_and_learn(user_input)
+        full_context = jarvis.get_full_context()
+
+    # --- CAPTEURS CONTEXTUELS ---
+    maintenant = datetime.now()
+    date_context = maintenant.strftime("%A %d %B %Y")
+    heure_context = maintenant.strftime("%H:%M")
+    localisation_context = "Annecy, France"
+
+    # --- GÉNÉRATION RÉPONSE ---
+    system_instructions = f"""Tu es JARVIS, l'IA de Monsieur {jarvis.owner.upper()}.
+    CONTEXTE RÉEL : Date: {date_context} | Heure: {heure_context} | Lieu: {localisation_context}
+    MÉMOIRE : {full_context}
+    ANTICIPATION : {learning_result.get('anticipation')}
+    
+    TON : Professionnel, sarcastique, proactif. Appelle-le 'Monsieur'. 
+    Si Monsieur travaille tard ({heure_context}), sois ironique sur ses cycles de sommeil."""
+
     try:
-        loc = json.loads(loc_raw)
-        if "lat" in loc:
-            jarvis.store_semantic_fact(
-                "boran",
-                "localisation",
-                f"lat:{loc['lat']}, lon:{loc['lon']}",
-                confidence=0.6
-            )
-    except Exception:
-        pass
-
-    jarvis.process_and_learn(user_input)
-
-    system_prompt = f"""
-Tu es JARVIS, l'intelligence artificielle personnelle de Boran.
-
-DATE : {dt['date']}
-HEURE : {dt['time']}
-JOUR : {dt['weekday']}
-
-PERSONNALITÉ :
-- Très intelligent
-- Calme
-- Légèrement ironique
-- Loyal
-- Concis
-- Style JARVIS de Tony Stark
-
-Ne mentionne jamais explicitement la mémoire.
-"""
-
-    response = jarvis.groq.chat.completions.create(
-        model="llama-3.3-70b-versatile",
-        messages=[
-            {"role": "system", "content": system_prompt},
-            *st.session_state.messages[-12:]
-        ],
-        temperature=0.75
-    )
-
-    assistant_msg = response.choices[0].message.content
-    st.session_state.messages.append({"role": "assistant", "content": assistant_msg})
-
-    with st.chat_message("assistant"):
-        st.markdown(assistant_msg)
-
+        response = jarvis.groq.chat.completions.create(
+            model="llama-3.3-70b-versatile",
+            messages=[{"role": "system", "content": system_instructions}] + st.session_state.messages[-10:],
+            temperature=0.7
+        )
+        ans = response.choices[0].message.content
+        with st.chat_message("assistant"): st.markdown(ans)
+        st.session_state.messages.append({"role": "assistant", "content": ans})
+        jarvis.update_working_memory(user_input, ans)
+    except Exception as e:
+        st.error(f"Erreur : {e}")
+    
     st.rerun()
+
+# ================================================================
+# SIDEBAR
+# ================================================================
+with st.sidebar:
+    st.markdown("## 🧠 Systèmes Mémoriels")
+    memory_type = st.selectbox("Type", ["Sémantique", "Épisodique", "Travail"])
+    if memory_type == "Sémantique":
+        st.json(jarvis.recall_semantic_facts())
+    elif memory_type == "Épisodique":
+        st.write(jarvis.recall_recent_episodes())
+    else:
+        st.write(jarvis._working_memory_cache)
