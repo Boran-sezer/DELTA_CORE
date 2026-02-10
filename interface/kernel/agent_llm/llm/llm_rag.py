@@ -7,19 +7,16 @@ from kernel.agent_llm.llm.llm_embeddings import generate_embedding
 
 def autonomous_process(prompt, *args, **kwargs):
     """
-    Système de tri Multi-Agent DELTA.
-    Phase 1 : Filtrage des questions.
-    Phase 2 : Fragmentation atomique par bloc de sens.
+    Système de tri Multi-Agent DELTA v3.0 (Cohésion Maximale).
     """
     try:
         api_key = st.secrets["GROQ_API_KEY"]
         groq_client = Groq(api_key=api_key)
         
-        # --- AGENT 1 : LE FILTRE (Évite d'enregistrer les questions) ---
-        # Utilisation d'un modèle rapide (8b) pour l'analyse de flux.
+        # --- AGENT 1 : LE FILTRE (Ajusté pour éviter la pollution) ---
         filter_prompt = f"""
         Analyse la phrase : "{prompt}"
-        Est-ce une information à mémoriser (affirmation) ou une question/salutation ?
+        Est-ce une information factuelle à retenir ou une simple question/salutation ?
         RÉPONDS UNIQUEMENT PAR 'MEMO' OU 'IGNORE'.
         """
         check_task = groq_client.chat.completions.create(
@@ -30,21 +27,22 @@ def autonomous_process(prompt, *args, **kwargs):
         if "IGNORE" in check_task.choices[0].message.content.upper():
             return "Interaction simple (non archivée)"
 
-        # --- AGENT 2 : L'ARCHIVISTE (Fragmentation & Tri) ---
-        # Utilisation du modèle 70b pour la structure JSON complexe. [cite: 2026-02-10]
+        # --- AGENT 2 : L'ARCHIVISTE (Version Anti-Fragmentation) ---
         fragmentation_prompt = f"""
-        Tu es l'archiviste de Monsieur Sezer. Décompose cette phrase en fragments UTILES : "{prompt}"
+        Tu es l'archiviste de Monsieur Sezer. Analyse : "{prompt}"
         
-        RÈGLES CRUCIALES :
-        1. Garde le sujet et l'action ensemble (ex: "Jules a 17 ans"). [cite: 2026-02-10]
-        2. Crée des chemins précis : 'Social/Amis/[Nom]', 'Social/Famille/[Lien]', 'Utilisateur/Identite'. [cite: 2026-02-10]
+        CONSIGNES DE SÉCURITÉ :
+        1. NE DÉCOUPE PAS les faits. Une ligne doit contenir Sujet + Lien + Info (ex: "Bedran a 26 ans").
+        2. INTERDICTION de créer des fragments vides ou sans contexte (ex: "quelle age").
+        3. Si la phrase contient plusieurs infos, crée un fragment complet pour chacune.
         
-        FORMAT JSON STRICT :
-        {{
-          "fragments": [
-            {{"content": "...", "path": "..."}}
-          ]
-        }}
+        STRUCTURE :
+        - 'Social/Amis/[Nom]'
+        - 'Social/Famille/[Lien]'
+        - 'Utilisateur/Identite'
+        
+        RÉPONDS EN JSON :
+        {{ "fragments": [ {{"content": "...", "path": "..."}} ] }}
         """
 
         chat_completion = groq_client.chat.completions.create(
@@ -58,16 +56,23 @@ def autonomous_process(prompt, *args, **kwargs):
         fragments = data.get("fragments", [])
         results = []
 
-        # --- SAUVEGARDE ATOMIQUE ---
+        # --- SAUVEGARDE ET NETTOYAGE ---
         for item in fragments:
             content = item.get("content")
             path = item.get("path")
             
+            # Sécurité supplémentaire : On ignore les fragments trop courts (pollution)
+            if len(content.split()) < 3:
+                continue
+                
             embedding = generate_embedding(content)
             success = save_to_memory(content, embedding, path)
             
             if success:
                 results.append(path)
+
+        if not results:
+            return "Aucune information pertinente à archiver."
 
         return f"Multi-archivage réussi : {', '.join(set(results))}"
 
