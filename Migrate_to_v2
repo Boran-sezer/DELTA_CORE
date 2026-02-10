@@ -1,0 +1,238 @@
+# ================================================================
+# DELTA OS - Script de Migration v1 → v2
+# ================================================================
+# Migre tes données de Firebase vers Supabase
+# ================================================================
+
+import streamlit as st
+from delta_memory_system import DeltaMemorySystem
+import firebase_admin
+from firebase_admin import credentials, firestore
+import base64
+import json
+
+def migrate_from_firebase():
+    """
+    Migre les données de ton ancien système Firebase vers Supabase
+    
+    Utilise ce script UNE SEULE FOIS pour transférer ta mémoire existante
+    """
+    
+    st.title("🔄 Migration Delta OS v1 → v2")
+    st.markdown("---")
+    
+    # ================================================================
+    # ÉTAPE 1 : Connexion Firebase
+    # ================================================================
+    
+    st.header("1️⃣ Connexion à Firebase")
+    
+    if st.button("🔗 Se connecter à Firebase"):
+        try:
+            if not firebase_admin._apps:
+                encoded = st.secrets["firebase_key"]["encoded_key"]
+                cred_dict = json.loads(base64.b64decode(encoded).decode())
+                cred_dict["private_key"] = cred_dict["private_key"].replace("\\n", "\n")
+                cred = credentials.Certificate(cred_dict)
+                firebase_admin.initialize_app(cred)
+            
+            db = firestore.client()
+            st.success("✅ Connecté à Firebase")
+            st.session_state.firebase_db = db
+            
+        except Exception as e:
+            st.error(f"❌ Erreur Firebase : {e}")
+            return
+    
+    if "firebase_db" not in st.session_state:
+        st.warning("⚠️ Connecte-toi d'abord à Firebase")
+        return
+    
+    fb_db = st.session_state.firebase_db
+    
+    # ================================================================
+    # ÉTAPE 2 : Scan Firebase
+    # ================================================================
+    
+    st.header("2️⃣ Scan des données Firebase")
+    
+    if st.button("🔍 Scanner Firebase"):
+        with st.spinner("Scan en cours..."):
+            
+            # Scan collection jarvis_entities (si tu utilisais l'ancien système)
+            try:
+                entities_ref = fb_db.collection("jarvis_entities")
+                entities = list(entities_ref.stream())
+                
+                st.success(f"✅ Trouvé {len(entities)} entités")
+                st.session_state.firebase_entities = entities
+                
+                # Affiche preview
+                if entities:
+                    st.subheader("Preview des entités")
+                    for entity in entities[:5]:
+                        data = entity.to_dict()
+                        st.json({entity.id: data}, expanded=False)
+                
+            except Exception as e:
+                st.error(f"Erreur scan : {e}")
+    
+    if "firebase_entities" not in st.session_state:
+        st.info("👆 Scanne d'abord les données")
+        return
+    
+    # ================================================================
+    # ÉTAPE 3 : Migration vers Supabase
+    # ================================================================
+    
+    st.header("3️⃣ Migration vers Supabase")
+    
+    entities = st.session_state.firebase_entities
+    
+    st.info(f"📦 {len(entities)} entités prêtes à migrer")
+    
+    if st.button("🚀 LANCER LA MIGRATION", type="primary"):
+        
+        # Init nouveau système
+        try:
+            memory = DeltaMemorySystem()
+            st.success("✅ Système Supabase initialisé")
+        except Exception as e:
+            st.error(f"❌ Erreur Supabase : {e}")
+            return
+        
+        # Migration
+        progress_bar = st.progress(0)
+        status_text = st.empty()
+        
+        migrated = 0
+        errors = 0
+        
+        for i, entity_doc in enumerate(entities):
+            try:
+                entity_id = entity_doc.id
+                entity_data = entity_doc.to_dict()
+                
+                status_text.text(f"Migration de {entity_id}...")
+                
+                # Récupère les sous-collections (info)
+                info_docs = entity_doc.reference.collection("info").stream()
+                
+                for info_doc in info_docs:
+                    category = info_doc.id
+                    facts = info_doc.to_dict()
+                    
+                    # Nettoie les métadonnées Firebase
+                    clean_facts = {
+                        k: v for k, v in facts.items()
+                        if k not in ['priority', 'last_accessed', 'access_count', 'updated_at']
+                    }
+                    
+                    if clean_facts:
+                        # Construit l'entité pour nouveau système
+                        entity_to_store = {
+                            "entity_name": entity_data.get("entity_name", entity_id),
+                            "entity_type": entity_data.get("entity_type", "topic"),
+                            "category": category,
+                            "facts": clean_facts,
+                            "priority": facts.get("priority", 2)
+                        }
+                        
+                        # Stocke dans Supabase
+                        if memory.store_entity(entity_to_store):
+                            migrated += 1
+                        else:
+                            errors += 1
+                
+                # Update progress
+                progress = (i + 1) / len(entities)
+                progress_bar.progress(progress)
+                
+            except Exception as e:
+                st.warning(f"⚠️ Erreur {entity_id}: {e}")
+                errors += 1
+        
+        # Résultat
+        st.markdown("---")
+        st.success("✅ Migration terminée !")
+        
+        col1, col2, col3 = st.columns(3)
+        with col1:
+            st.metric("Entités traitées", len(entities))
+        with col2:
+            st.metric("Migrées avec succès", migrated)
+        with col3:
+            st.metric("Erreurs", errors, delta_color="inverse")
+        
+        st.balloons()
+        
+        # Recommendations
+        st.markdown("---")
+        st.info("""
+        ### 🎉 Migration réussie !
+        
+        **Prochaines étapes** :
+        1. ✅ Teste le nouveau système : `streamlit run delta_os_v2.py`
+        2. ✅ Vérifie que tes données sont bien là
+        3. ✅ Une fois confirmé, tu peux archiver l'ancien système Firebase
+        
+        **Note** : Les deux systèmes peuvent coexister pendant la transition.
+        """)
+
+# ================================================================
+# ALTERNATIVE : Migration manuelle simple
+# ================================================================
+
+def simple_import_from_json():
+    """
+    Import simple depuis un fichier JSON exporté
+    
+    Utile si tu as déjà exporté tes données
+    """
+    
+    st.title("📥 Import depuis JSON")
+    
+    uploaded_file = st.file_uploader("Upload ton export JSON", type=["json"])
+    
+    if uploaded_file:
+        try:
+            data = json.load(uploaded_file)
+            st.success(f"✅ Fichier chargé : {len(data)} entrées")
+            
+            st.json(data[:3], expanded=False)  # Preview
+            
+            if st.button("🚀 Importer dans Supabase"):
+                memory = DeltaMemorySystem()
+                
+                imported = 0
+                for entry in data:
+                    try:
+                        if memory.store_entity(entry):
+                            imported += 1
+                    except Exception as e:
+                        st.warning(f"Erreur : {e}")
+                
+                st.success(f"✅ {imported}/{len(data)} entrées importées")
+                
+        except Exception as e:
+            st.error(f"❌ Erreur : {e}")
+
+# ================================================================
+# MAIN
+# ================================================================
+
+if __name__ == "__main__":
+    
+    st.set_page_config(
+        page_title="Migration Delta OS",
+        page_icon="🔄",
+        layout="wide"
+    )
+    
+    tab1, tab2 = st.tabs(["🔄 Migration Firebase", "📥 Import JSON"])
+    
+    with tab1:
+        migrate_from_firebase()
+    
+    with tab2:
+        simple_import_from_json()
