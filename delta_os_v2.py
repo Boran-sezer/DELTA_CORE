@@ -206,21 +206,28 @@ RÉPONDS EN JSON STRICT :
         except Exception:
             return {"semantic_facts": [], "importance_score": 0.0}
 
-    # ============================================================
-    # LEARNING LOOP
-    # ============================================================
-
-    def process_and_learn(self, message: str):
+  def process_and_learn(self, message: str):
         analysis = self.analyze_message(message)
+        
+        # Vérification de sécurité pour éviter le KeyError
         if not self.is_memory_worthy(analysis):
             return
-        for fact in analysis.get("semantic_facts", []):
-            self.store_semantic_fact(
-                fact["entity"],
-                fact["fact_type"],
-                fact["fact"],
-                fact.get("confidence", 0.8)
-            )
+            
+        facts = analysis.get("semantic_facts", [])
+        
+        for fact in facts:
+            # On utilise .get() pour éviter le crash si une clé manque
+            entity = fact.get("entity") or fact.get("entité") or "boran"
+            fact_type = fact.get("fact_type") or fact.get("type") or "info"
+            fact_val = fact.get("fact") or fact.get("valeur") or ""
+            
+            if fact_val: # On ne stocke que s'il y a un contenu
+                self.store_semantic_fact(
+                    entity,
+                    fact_type,
+                    fact_val,
+                    fact.get("confidence", 0.8)
+                )
 
 # ================================================================
 # SAFE INIT (ANTI-ATTRIBUTEERROR)
