@@ -8,7 +8,7 @@ root_path = os.path.abspath(os.path.join(os.path.dirname(__file__), '../../'))
 if root_path not in sys.path:
     sys.path.append(root_path)
 
-# 2. Imports du Kernel
+# 2. Imports du Kernel (Arbre de Connaissance)
 try:
     from kernel.agent_llm.llm.llm_embeddings import generate_embedding
     from kernel.agent_llm.rag.search_memory import search_memory
@@ -18,61 +18,47 @@ except Exception as e:
     search_memory = None
     autonomous_process = None
 
-# 3. Configuration Interface
-st.set_page_config(page_title="DELTA", page_icon="🤖")
-st.title("🤖 DELTA")
-st.caption("Système opérationnel | Monsieur Sezer")
+# 3. Interface DELTA (Configuration Monsieur Sezer) [cite: 2026-02-07]
+st.set_page_config(page_title="DELTA", page_icon="🤖", layout="wide")
+st.title("🤖 DELTA v5.2")
+st.caption("Système opérationnel | Monsieur Sezer") # [cite: 2026-02-08]
 
 client = Groq(api_key=st.secrets["GROQ_API_KEY"])
 
 if "messages" not in st.session_state:
     st.session_state.messages = []
 
+# Affichage de l'historique
 for message in st.session_state.messages:
     with st.chat_message(message["role"]):
         st.markdown(message["content"])
 
-# 4. Logique de Conversation
-if prompt := st.chat_input("Instructions, Monsieur Sezer ?"):
+# 4. Logique de Conversation Directe
+if prompt := st.chat_input("À vos ordres, Monsieur Sezer..."): # [cite: 2026-02-08]
     st.session_state.messages.append({"role": "user", "content": prompt})
     with st.chat_message("user"):
         st.markdown(prompt)
 
     with st.chat_message("assistant"):
         try:
-            # A. RECHERCHE RAG ARBORESCENTE (Multi-Query + Path Exploration)
+            # A. RECHERCHE DANS L'ARBRE (RAG)
             full_context = ""
             if search_memory:
-                # Agent de raffinement : identifie les branches potentielles à explorer
-                refiner = client.chat.completions.create(
-                    messages=[{"role": "user", "content": f"Pour : '{prompt}', donne 3 chemins de dossiers probables (ex: Archives/Social/Famille) et 2 mots-clés, séparés par des virgules."}],
-                    model="llama-3.1-8b-instant",
-                )
-                keywords = refiner.choices[0].message.content.split(',')
-                search_terms = [prompt] + [k.strip() for k in keywords]
-                
-                context_results = []
-                for term in search_terms:
-                    query_vec = generate_embedding(term)
-                    res = search_memory(query_vec)
-                    if res:
-                        context_results.append(res)
-                
-                # Fusion unique pour éviter les répétitions
-                full_context = "\n".join(list(set(context_results)))
+                query_vec = generate_embedding(prompt)
+                full_context = search_memory(query_vec)
 
-            # B. RÉPONSE JARVIS (Synthèse de l'Arbre)
+            # B. RÉPONSE PERSONNALISÉE (Jarvis Mode) [cite: 2026-02-08]
             system_prompt = f"""
-            Tu es DELTA, l'intelligence de Monsieur Sezer (Sezer Boran). [cite: 2026-02-07]
-            Ton ton est direct, concis et Jarvis-like. [cite: 2026-02-08]
+            Tu es DELTA, l'intelligence artificielle exclusive de Monsieur Sezer (Sezer Boran). [cite: 2026-02-07]
+            Ton ton est Jarvis-like : calme, direct, extrêmement concis. [cite: 2026-02-08]
             
-            BRANCHES DE MÉMOIRE EXPLORÉES :
+            DONNÉES DE L'ARBRE :
             {full_context}
             
-            CONSIGNES :
-            1. Utilise les fragments pour répondre avec certitude.
-            2. Si un nom (ex: Bedran) est lié à une relation (ex: Frère) dans l'arbre, fusionne l'info. [cite: 2026-02-10]
-            3. Ne mentionne pas que tu cherches dans tes dossiers, réponds naturellement.
+            INSTRUCTIONS : 
+            - Tu sais que tu parles à Monsieur Sezer par défaut. [cite: 2026-02-08]
+            - Ne fais jamais de phrases inutiles. [cite: 2026-02-07]
+            - Si l'info sur Bedran est présente, utilise-la sans poser de questions. [cite: 2026-02-10]
             """
 
             chat_completion = client.chat.completions.create(
@@ -86,7 +72,7 @@ if prompt := st.chat_input("Instructions, Monsieur Sezer ?"):
             response = chat_completion.choices[0].message.content
             st.markdown(response)
             
-            # C. MÉMORISATION (Mise à jour de l'Arbre Infini)
+            # C. MÉMORISATION (Mise à jour de l'Arbre)
             status_mem = "Mémoire inactive"
             if autonomous_process:
                 status_mem = autonomous_process(prompt)
@@ -95,4 +81,4 @@ if prompt := st.chat_input("Instructions, Monsieur Sezer ?"):
             st.session_state.messages.append({"role": "assistant", "content": response})
 
         except Exception as e:
-            st.error(f"Erreur de traitement : {e}")
+            st.error(f"Erreur : {e}")
