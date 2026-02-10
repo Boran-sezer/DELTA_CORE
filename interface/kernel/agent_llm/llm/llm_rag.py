@@ -6,17 +6,16 @@ from kernel.agent_llm.llm.llm_embeddings import generate_embedding
 
 def autonomous_process(prompt, *args, **kwargs):
     """
-    Système DELTA v5.5 : Archivage par Écrasement (Upsert) & Chemins Fixes.
+    Système DELTA v5.6 : Élimination des résidus et automatisation totale.
     """
     try:
         api_key = st.secrets["GROQ_API_KEY"]
         groq_client = Groq(api_key=api_key)
         
-        # --- AGENT 1 : LE FILTRE (Priorité Absolue Créateur) ---
+        # --- AGENT 1 : LE FILTRE (Priorité Monsieur Sezer) ---
         filter_prompt = f"""
-        Analyse la phrase : "{prompt}"
-        Si elle contient une info sur Monsieur Sezer, sa famille, son âge ou ses goûts, réponds 'MEMO'. 
-        Si c'est une correction de chiffre ou de fait, réponds 'MEMO'. [cite: 2026-02-10]
+        Analyse : "{prompt}"
+        Si c'est un fait sur Monsieur Sezer, sa famille, ou une correction, réponds 'MEMO'. 
         Sinon réponds 'IGNORE'.
         """
         
@@ -29,20 +28,21 @@ def autonomous_process(prompt, *args, **kwargs):
         if "MEMO" not in check_task.choices[0].message.content.upper():
             return "Interaction simple (non archivée)"
 
-        # --- AGENT 2 : LE CARTOGRAPHE (Standardisation des Chemins) ---
+        # --- AGENT 2 : LE CARTOGRAPHE (Zéro Résidu) ---
         tree_prompt = f"""
         Tu es le cartographe de DELTA. Donnée : "{prompt}"
         
-        CONSIGNES DE RIGUEUR :
-        1. IDENTITÉ : Ne cite JAMAIS "Bedran" sauf si l'utilisateur l'a nommé. Sinon, utilise "Monsieur Sezer". [cite: 2026-02-10]
-        2. CHEMINS FIXES : Pour permettre l'Upsert, utilise TOUJOURS ces structures :
-           - Archives/Utilisateur/Identite/Age
-           - Archives/Utilisateur/Gouts/Alimentaire
-           - Archives/Utilisateur/Famille/Composition (pour le nombre de frères/sœurs)
-           - Archives/Social/Famille/Bedran/[Sujet] (uniquement si Bedran est cité)
+        RÈGLES D'AUTOMATISATION :
+        1. INTERDICTION d'utiliser des chemins courts comme 'Archives/Utilisateur/Identite'.
+        2. Tu dois TOUJOURS aller jusqu'au bout de l'arborescence pour que l'Upsert fonctionne. [cite: 2026-02-10]
+        3. CHEMINS OBLIGATOIRES :
+           - Âge -> Archives/Utilisateur/Identite/Age
+           - Localisation -> Archives/Utilisateur/Identite/Localisation
+           - Famille -> Archives/Utilisateur/Famille/Composition
+           - Gouts -> Archives/Utilisateur/Gouts/Alimentaire
         
-        RÉPONDS UNIQUEMENT EN JSON :
-        {{ "fragments": [ {{"content": "Monsieur Sezer + info complète", "path": "Archives/..."}} ] }}
+        RÉPONDS EN JSON :
+        {{ "fragments": [ {{"content": "Monsieur Sezer + info", "path": "Archives/..."}} ] }}
         """
 
         chat_completion = groq_client.chat.completions.create(
@@ -56,18 +56,20 @@ def autonomous_process(prompt, *args, **kwargs):
         fragments = data.get("fragments", [])
         results = []
 
-        # --- SAUVEGARDE (L'Upsert écrase l'ancienne ligne avec le même path) ---
+        # --- SAUVEGARDE (L'Upsert remplace automatiquement l'info au même chemin) ---
         for item in fragments:
             content, path = item.get("content"), item.get("path")
             
-            if len(content.split()) < 3: continue
-                
+            # Sécurité : On refuse les chemins trop courts qui créent des doublons
+            if len(path.split('/')) < 4:
+                continue
+
             embedding = generate_embedding(content)
-            # Appel à save_to_memory qui doit utiliser upsert(data, on_conflict='path') [cite: 2026-02-10]
+            # save_to_memory utilise .upsert(data, on_conflict='path') [cite: 2026-02-10]
             if save_to_memory(content, embedding, path):
                 results.append(path)
 
-        return f"Arbre mis à jour : {', '.join(set(results))}" if results else "Branche rejetée."
+        return f"Arbre mis à jour : {', '.join(set(results))}" if results else "Branche rejetée (chemin imprécis)."
 
     except Exception as e:
         return f"Erreur Système : {str(e)}"
