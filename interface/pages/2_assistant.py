@@ -3,17 +3,17 @@ import os
 import streamlit as st
 from groq import Groq
 
-# 1. Configuration du PATH pour atteindre la racine DELTA_CORE
+# 1. Configuration du PATH
 root_path = os.path.abspath(os.path.join(os.path.dirname(__file__), '../../'))
 if root_path not in sys.path:
     sys.path.append(root_path)
 
 # 2. Imports du Kernel
 try:
-    # On importe les 3 piliers de la mémoire
     from kernel.agent_llm.llm.llm_embeddings import generate_embedding
     from kernel.agent_llm.rag.search_memory import search_memory
-    from kernel.start_kernel import autonomous_process
+    # ON IMPORTE DIRECTEMENT DEPUIS LE FICHIER QUE NOUS AVONS CORRIGÉ
+    from kernel.agent_llm.llm.llm_rag import autonomous_process
 except Exception as e:
     st.error(f"⚠️ Alerte Structure : {e}")
     search_memory = None
@@ -24,6 +24,7 @@ st.set_page_config(page_title="DELTA", page_icon="🤖")
 st.title("🤖 DELTA")
 st.caption("Système opérationnel | Monsieur Sezer")
 
+# Client Groq pour la réponse immédiate
 client = Groq(api_key=st.secrets["GROQ_API_KEY"])
 
 if "messages" not in st.session_state:
@@ -41,7 +42,7 @@ if prompt := st.chat_input("Instructions, Monsieur Sezer ?"):
 
     with st.chat_message("assistant"):
         try:
-            # A. RECHERCHE SÉMANTIQUE (Lecture des archives)
+            # A. RECHERCHE SÉMANTIQUE
             archives = ""
             if search_memory:
                 query_vec = generate_embedding(prompt)
@@ -51,11 +52,7 @@ if prompt := st.chat_input("Instructions, Monsieur Sezer ?"):
             system_prompt = f"""
             Tu es DELTA, l'IA de Monsieur Sezer (Sezer Boran). [cite: 2026-02-07]
             Sois direct, concis et Jarvis-like. [cite: 2026-02-08]
-            
-            Voici ce que tu sais sur lui (Archives) :
-            {archives}
-            
-            Utilise ces infos pour répondre. Si l'info n'est pas là, ne l'invente pas.
+            Voici ce que tu sais sur lui : {archives}
             """
 
             chat_completion = client.chat.completions.create(
@@ -69,9 +66,10 @@ if prompt := st.chat_input("Instructions, Monsieur Sezer ?"):
             response = chat_completion.choices[0].message.content
             st.markdown(response)
             
-            # C. MÉMORISATION (Écriture invisible)
+            # C. MÉMORISATION (Utilise le Kernel corrigé)
             status_mem = "Mémoire inactive"
             if autonomous_process:
+                # On ne passe plus 'client' ici, le Kernel s'en occupe tout seul !
                 status_mem = autonomous_process(prompt)
             
             st.caption(f"🛡️ {status_mem}")
