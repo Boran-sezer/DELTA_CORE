@@ -1,1 +1,0 @@
-# DELTA_CORE
