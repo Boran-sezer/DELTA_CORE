@@ -40,33 +40,35 @@ if prompt := st.chat_input("Instructions, Monsieur Sezer ?"):
 
     with st.chat_message("assistant"):
         try:
-            # A. RECHERCHE RAG OPTIMISÉE (Multi-Pass)
-            context_list = []
+            # A. RECHERCHE RAG ÉVOLUÉE (Multi-Query)
+            full_context = ""
             if search_memory:
-                # Premier passage : Recherche sur la phrase entière
-                query_vec = generate_embedding(prompt)
-                context_list.append(search_memory(query_vec))
+                # Agent de raffinement : transforme "quel âge a mon frère" en "Bedran, âge, frère"
+                refiner = client.chat.completions.create(
+                    messages=[{"role": "user", "content": f"Pour la question : '{prompt}', donne moi uniquement les 3 mots-clés les plus importants pour fouiller une base de données, séparés par des virgules."}],
+                    model="llama-3.1-8b-instant",
+                )
+                keywords = refiner.choices[0].message.content.split(',')
+                search_terms = [prompt] + [k.strip() for k in keywords]
                 
-                # Second passage : Recherche sur les noms propres (si présents)
-                # On divise la phrase pour chercher chaque mot capitalisé (noms)
-                for word in prompt.split():
-                    if word[0].isupper() or len(word) > 4:
-                        word_vec = generate_embedding(word)
-                        context_list.append(search_memory(word_vec))
-            
-            # Fusion unique du contexte
-            full_context = "\n".join(list(set(context_list)))
+                context_results = []
+                for term in search_terms:
+                    query_vec = generate_embedding(term)
+                    res = search_memory(query_vec)
+                    if res:
+                        context_results.append(res)
+                
+                full_context = "\n".join(list(set(context_results)))
 
             # B. RÉPONSE PERSONNALISÉE (Mode Jarvis)
             system_prompt = f"""
-            Tu es DELTA, l'IA de Monsieur Sezer. [cite: 2026-02-07]
+            Tu es DELTA, l'IA de Monsieur Sezer (Sezer Boran). [cite: 2026-02-07]
             Sois direct, concis et Jarvis-like. [cite: 2026-02-08]
             
-            ARCHIVES RETROUVÉES :
+            DONNÉES MÉMOIRE :
             {full_context}
             
-            CONSIGNE : Utilise ces fragments pour répondre précisément. 
-            Si tu vois un nom et un âge séparés, fais le lien. [cite: 2026-02-10]
+            CONSIGNE : Si l'utilisateur parle de son 'frère' et que la mémoire contient 'BEDRAN', fais le lien immédiatement. [cite: 2026-02-10]
             """
 
             chat_completion = client.chat.completions.create(
@@ -74,13 +76,13 @@ if prompt := st.chat_input("Instructions, Monsieur Sezer ?"):
                     {"role": "system", "content": system_prompt},
                     {"role": "user", "content": prompt}
                 ],
-                model="llama-3.3-70b-versatile", # Modèle plus puissant pour le RAG
+                model="llama-3.3-70b-versatile",
             )
             
             response = chat_completion.choices[0].message.content
             st.markdown(response)
             
-            # C. MÉMORISATION (Fragmentation Atomique)
+            # C. MÉMORISATION (Via Kernel Multi-Agent)
             status_mem = "Mémoire inactive"
             if autonomous_process:
                 status_mem = autonomous_process(prompt)
