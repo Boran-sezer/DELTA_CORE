@@ -6,23 +6,28 @@ from kernel.agent_llm.llm.llm_embeddings import generate_embedding
 
 def autonomous_process(prompt, *args, **kwargs):
     """
-    Système DELTA v7.0 : Mémoire Vive.
-    Force l'inclusion des objets (ex: Crêpes) dans le contenu archivé.
+    Système DELTA v7.1 : Jarvis Core.
+    Optimisé pour Monsieur Sezer : mémorisation instantanée et précise.
     """
     try:
         api_key = st.secrets["GROQ_API_KEY"]
         groq_client = Groq(api_key=api_key)
         
-        # --- AGENT 1 : LE FILTRE ---
-        keywords = ["ans", "âge", "aime", "chocolat", "crêpe", "plat", "pardon", "bedran", "zilan"]
+        # --- AGENT 1 : LE FILTRE (Capture Totale) ---
+        keywords = ["ans", "âge", "aime", "chocolat", "crêpe", "plat", "pardon", "bedran", "zilan", "boran"]
         if not any(word in prompt.lower() for word in keywords):
             return "Interaction simple (non archivée)"
 
-        # --- AGENT 2 : LE CARTOGRAPHE ---
+        # --- AGENT 2 : LE CARTOGRAPHE (Chemins Fixes) ---
+        # On impose des chemins précis pour éviter les rejets [cite: 2026-02-10]
         tree_prompt = f"""
         Donnée : "{prompt}"
-        RÈGLE : Tu dois OBLIGATOIREMENT nommer l'objet (ex: Crêpes, Chocolat) dans le JSON.
-        - Monsieur Sezer -> Archives/Utilisateur/Gouts/Alimentaire
+        RÈGLES DE CHEMINS :
+        - Monsieur Sezer -> Archives/Utilisateur/Identite/Age OU Archives/Utilisateur/Gouts/Alimentaire
+        - Bedran -> Archives/Social/Famille/Bedran/Age OU Archives/Social/Famille/Bedran/Gouts
+        
+        JSON OBLIGATOIRE :
+        {{ "fragments": [ {{"content": "Sujet + info précise", "path": "Le chemin complet"}} ] }}
         """
 
         chat_completion = groq_client.chat.completions.create(
@@ -38,13 +43,16 @@ def autonomous_process(prompt, *args, **kwargs):
 
         for item in fragments:
             content, path = item.get("content"), item.get("path")
-            if path.count('/') < 2: continue
+            
+            # Validation simplifiée : on accepte tout chemin structuré [cite: 2026-02-10]
+            if not path.startswith("Archives/"):
+                continue
                 
             embedding = generate_embedding(content)
             if save_to_memory(content, embedding, path):
                 results.append(path)
 
-        return f"Arbre mis à jour : {', '.join(set(results))}" if results else "Branche rejetée."
+        return f"Arbre mis à jour : {', '.join(set(results))}" if results else "Branche rejetée (format invalide)."
 
     except Exception as e:
         return f"Erreur Système : {str(e)}"
