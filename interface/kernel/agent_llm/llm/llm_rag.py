@@ -6,36 +6,30 @@ from kernel.agent_llm.llm.llm_embeddings import generate_embedding
 
 def autonomous_process(prompt, *args, **kwargs):
     """
-    Système DELTA v6.7 : Identité Suprême & Distinction Nominale.
-    Gère Boran (Prénom), Sezer (Nom) et les entités tierces (Bedran, Zilan).
+    Système DELTA v6.8 : Limitation de Flux et Précision Chirurgicale.
+    Empêche la prolifération de tiroirs vides et les doublons.
     """
     try:
         api_key = st.secrets["GROQ_API_KEY"]
         groq_client = Groq(api_key=api_key)
         
-        # --- AGENT 1 : LE FILTRE (Mots-Clés Étendus) ---
-        keywords = ["ans", "âge", "aime", "adore", "préfère", "frère", "sœur", "famille", "chocolat", "boran", "sezer", "bedran", "zilan"]
+        # --- AGENT 1 : LE FILTRE (Mots-Clés de Vie) ---
+        keywords = ["ans", "âge", "aime", "adore", "préfère", "frère", "sœur", "famille", "chocolat", "boran", "sezer", "zilan"]
         if not any(word in prompt.lower() for word in keywords):
             return "Interaction simple (non archivée)"
 
-        # --- AGENT 2 : LE CARTOGRAPHE (Précision Nominale) ---
+        # --- AGENT 2 : LE CARTOGRAPHE (Sélectif) ---
         tree_prompt = f"""
         Tu es le cartographe de DELTA. Donnée : "{prompt}"
         
-        RÈGLES D'IDENTITÉ STRICTES :
-        1. UTILISATEUR : Ton créateur s'appelle Boran SEZER. 
-           - Prénom -> Archives/Utilisateur/Identite/Prenom
-           - Nom -> Archives/Utilisateur/Identite/Nom
-           - Ses goûts -> Archives/Utilisateur/Gouts/Alimentaire
-        
-        2. TIERS : Tu DOIS extraire le prénom (ex: Bedran, Zilan) pour le chemin. [cite: 2026-02-10]
-           - Archives/Social/Famille/[Prenom]/Age
-           - Archives/Social/Famille/[Prenom]/Gouts
-        
-        3. VÉRITÉ : Ne confonds jamais les goûts de Boran avec ceux de sa famille. [cite: 2026-02-10]
+        RÈGLES DE RANGEMENT STRICTES :
+        1. INTERDICTION : Ne crée JAMAIS de chemin parent comme 'Archives/Utilisateur/Identite'.
+        2. OBLIGATION : Utilise uniquement des sous-tiroirs finaux : /Age, /Prenom, /Nom, /Alimentaire. [cite: 2026-02-10]
+        3. ÉCONOMIE : Ne génère qu'UN SEUL fragment par information. Si l'utilisateur donne son âge, n'envoie que le tiroir /Age.
+        4. ISOLATION : Si l'utilisateur ne parle pas de Bedran ou Zilan, ne les mentionne pas dans le JSON. [cite: 2026-02-10]
         
         RÉPONDS UNIQUEMENT EN JSON :
-        {{ "fragments": [ {{"content": "Sujet exact + info", "path": "Archives/..."}} ] }}
+        {{ "fragments": [ {{"content": "Sujet + fait précis", "path": "Archives/..."}} ] }}
         """
 
         chat_completion = groq_client.chat.completions.create(
@@ -46,19 +40,21 @@ def autonomous_process(prompt, *args, **kwargs):
         )
         
         data = json.loads(chat_completion.choices[0].message.content)
-        fragments = data.get("fragments", [])
+        fragments = data.get("fragments", [])[:2] # Force la limite à 2 fragments maximum [cite: 2026-02-10]
         results = []
 
-        # --- SAUVEGARDE ET UPSERT ---
         for item in fragments:
             content, path = item.get("content"), item.get("path")
-            embedding = generate_embedding(content)
             
-            # L'Upsert se base sur le path unique [cite: 2026-02-10]
+            # Sécurité : On ignore les chemins trop courts ou racine [cite: 2026-02-10]
+            if path.count('/') < 3:
+                continue
+                
+            embedding = generate_embedding(content)
             if save_to_memory(content, embedding, path):
                 results.append(path)
 
-        return f"Arbre mis à jour : {', '.join(set(results))}" if results else "Branche rejetée."
+        return f"Arbre mis à jour : {', '.join(set(results))}" if results else "Branche rejetée (trop générique)."
 
     except Exception as e:
         return f"Erreur Système : {str(e)}"
