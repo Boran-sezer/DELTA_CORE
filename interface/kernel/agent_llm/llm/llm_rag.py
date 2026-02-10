@@ -3,17 +3,19 @@ from groq import Groq
 from kernel.agent_llm.rag.save_memory import save_to_memory
 from kernel.agent_llm.llm.llm_embeddings import generate_embedding
 
-def autonomous_process(prompt, groq_client=None):
+def autonomous_process(prompt, *args, **kwargs):
     """
-    Système de tri intelligent pour classer les infos dans Supabase.
+    Système de tri intelligent de DELTA.
+    Accepte n'importe quel argument (*args, **kwargs) pour éviter les erreurs de conflit.
     """
     try:
-        # Récupération automatique de la clé API dans les Secrets
+        # 1. Récupération du client Groq (via argument ou Secrets)
+        groq_client = kwargs.get('groq_client')
         if groq_client is None:
             api_key = st.secrets["GROQ_API_KEY"]
             groq_client = Groq(api_key=api_key)
         
-        # --- PHASE DE TRI ---
+        # 2. Détermination du dossier (Classification)
         classification_prompt = f"""
         Tu es l'aiguilleur de DELTA. Analyse cette phrase : "{prompt}"
         Choisis UNIQUEMENT un dossier de rangement parmi :
@@ -32,9 +34,9 @@ def autonomous_process(prompt, groq_client=None):
         
         smart_path = chat_completion.choices[0].message.content.strip()
         
-        # --- PHASE DE SAUVEGARDE ---
+        # 3. Génération de l'embedding et Sauvegarde
         embedding = generate_embedding(prompt)
-        # On utilise la table 'archives' identifiée dans votre Supabase
+        # Utilisation de la table 'archives' identifiée dans votre base
         success = save_to_memory(prompt, embedding, smart_path)
         
         if success:
