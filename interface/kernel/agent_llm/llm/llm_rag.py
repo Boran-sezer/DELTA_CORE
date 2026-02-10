@@ -6,22 +6,22 @@ from kernel.agent_llm.llm.llm_embeddings import generate_embedding
 
 def autonomous_process(prompt, *args, **kwargs):
     """
-    Système DELTA v5.6 : Automatisation Totale Monsieur Sezer.
+    Système DELTA v5.7 : Archivage Forcé Monsieur Sezer.
     Identifie, classifie et écrase les anciennes données (Upsert).
     """
     try:
         api_key = st.secrets["GROQ_API_KEY"]
         groq_client = Groq(api_key=api_key)
         
-        # --- AGENT 1 : LE FILTRE (Priorité Absolue Créateur) ---
-        # On force le MEMO pour tout ce qui touche à Monsieur Sezer [cite: 2026-02-10]
+        # --- AGENT 1 : LE FILTRE (Version Armure Monsieur Sezer) ---
+        # Zéro tolérance à l'hésitation pour vos informations personnelles [cite: 2026-02-10]
         filter_prompt = f"""
-        Analyse la phrase : "{prompt}"
+        Tu es le garde-barrière de DELTA. Phrase : "{prompt}"
         
-        CONSIGNE :
-        Si la phrase contient une info sur Monsieur Sezer (Boran), sa famille, son âge, 
-        ses goûts (ex: chocolat), ou une correction de fait, réponds TOUJOURS 'MEMO'. 
-        Sinon réponds 'IGNORE'.
+        RÈGLE ABSOLUE :
+        - Si la phrase contient un chiffre (âge), une préférence (chocolat), un nom ou un fait sur la vie de Monsieur Sezer, réponds EXCLUSIVEMENT 'MEMO'. [cite: 2026-02-10]
+        - Ne réfléchis pas à l'utilité. Si c'est un fait sur l'utilisateur : 'MEMO'. [cite: 2026-02-10]
+        - Uniquement si c'est une formule de politesse vide (Salut, Ça va), réponds 'IGNORE'.
         
         RÉPONSE : 'MEMO' ou 'IGNORE'.
         """
@@ -38,14 +38,14 @@ def autonomous_process(prompt, *args, **kwargs):
             return "Interaction simple (non archivée)"
 
         # --- AGENT 2 : LE CARTOGRAPHE (Zéro Résidu / Chemins Fixes) ---
-        # Force l'utilisation de chemins profonds pour éviter les doublons
+        # Force l'utilisation de chemins profonds pour l'Upsert
         tree_prompt = f"""
-        Tu es le cartographe de DELTA. Donnée à traiter : "{prompt}"
+        Tu es le cartographe de DELTA. Donnée : "{prompt}"
         
-        RÈGLES DE CLASSIFICATION :
-        1. Sujet : Utilise "Monsieur Sezer" par défaut.
-        2. Chemins : INTERDICTION d'utiliser des chemins courts (ex: Archives/Utilisateur/Identite). [cite: 2026-02-10]
-        3. STRUCTURES OBLIGATOIRES (pour l'Upsert) :
+        RÈGLES D'AUTOMATISATION :
+        1. Sujet : Utilise "Monsieur Sezer" par défaut. [cite: 2026-02-08]
+        2. INTERDICTION d'utiliser des chemins courts (ex: Archives/Utilisateur/Identite).
+        3. STRUCTURES OBLIGATOIRES (pour permettre l'Upsert) :
            - Âge -> Archives/Utilisateur/Identite/Age
            - Gouts -> Archives/Utilisateur/Gouts/Alimentaire
            - Famille -> Archives/Utilisateur/Famille/Composition
@@ -69,7 +69,7 @@ def autonomous_process(prompt, *args, **kwargs):
         for item in fragments:
             content, path = item.get("content"), item.get("path")
             
-            # Sécurité : On refuse les chemins trop vagues [cite: 2026-02-10]
+            # Sécurité anti-résidus : on refuse les chemins trop courts
             if len(path.split('/')) < 4:
                 continue
                 
