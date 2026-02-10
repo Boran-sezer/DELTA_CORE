@@ -6,45 +6,39 @@ from kernel.agent_llm.llm.llm_embeddings import generate_embedding
 
 def autonomous_process(prompt, *args, **kwargs):
     """
-    Système DELTA v6.2 : Isolation des Profils & Upsert Sélectif.
-    Empêche l'écrasement des données de Monsieur Sezer par des tiers.
+    Système DELTA v6.3 : Archivage par Mots-Clés Prioritaires.
+    Garantit que même les corrections "au vol" sont capturées.
     """
     try:
         api_key = st.secrets["GROQ_API_KEY"]
         groq_client = Groq(api_key=api_key)
         
-        # --- AGENT 1 : LE FILTRE (Agressivité Totale) ---
-        filter_prompt = f"""
-        Phrase : "{prompt}"
-        Si la phrase contient une info sur Monsieur Sezer, Bedran, la famille, 
-        un âge ou un goût, réponds 'MEMO'. Sinon 'IGNORE'.
-        """
+        # --- AGENT 1 : LE FILTRE (Détection de Mots-Clés) ---
+        # On force le MEMO si un mot critique est présent [cite: 2026-02-10]
+        keywords = ["ans", "âge", "aime", "adore", "préfère", "frère", "famille", "chocolat", "sezer", "bedran"]
+        lower_prompt = prompt.lower()
         
-        check_task = groq_client.chat.completions.create(
-            messages=[{"role": "user", "content": filter_prompt}],
-            model="llama-3.1-8b-instant",
-            temperature=0
-        )
+        is_memo = any(word in lower_prompt for word in keywords)
         
-        if "MEMO" not in check_task.choices[0].message.content.upper():
+        if not is_memo:
             return "Interaction simple (non archivée)"
 
-        # --- AGENT 2 : LE CARTOGRAPHE (Isolation Monsieur Sezer vs Autres) ---
-        # On force la création de dossiers séparés [cite: 2026-02-10]
+        # --- AGENT 2 : LE CARTOGRAPHE (Isolation des Tiroirs) ---
+        # On impose la séparation stricte Monsieur Sezer / Bedran [cite: 2026-02-10]
         tree_prompt = f"""
         Tu es le cartographe. Donnée : "{prompt}"
         
-        RÈGLES DE CHEMINS (Upsert Safe) :
-        1. MONSIEUR SEZER : Utilise UNIQUEMENT :
-           - Archives/Utilisateur/Identite/Age
-           - Archives/Utilisateur/Gouts/Alimentaire
+        RÈGLES DE CHEMINS (Upsert Force) :
+        1. MONSIEUR SEZER (Toi) : 
+           - Age -> Archives/Utilisateur/Identite/Age
+           - Gouts -> Archives/Utilisateur/Gouts/Alimentaire
         
-        2. TIERS (Ex: Bedran) : Ne touche JAMAIS aux chemins 'Utilisateur'. Crée :
-           - Archives/Social/Famille/[Nom]/Age
-           - Archives/Social/Famille/[Nom]/Relation
+        2. BEDRAN / AUTRES :
+           - Archives/Social/Famille/Bedran/Age
+           - Archives/Social/Famille/Bedran/Relation
         
         RÉPONDS EN JSON :
-        {{ "fragments": [ {{"content": "Phrase complète", "path": "Le chemin correct"}} ] }}
+        {{ "fragments": [ {{"content": "Monsieur Sezer + info", "path": "Archives/..."}} ] }}
         """
 
         chat_completion = groq_client.chat.completions.create(
