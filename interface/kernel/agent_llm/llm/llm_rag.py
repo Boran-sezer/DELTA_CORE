@@ -6,19 +6,19 @@ from kernel.agent_llm.llm.llm_embeddings import generate_embedding
 
 def autonomous_process(prompt, *args, **kwargs):
     """
-    Système DELTA v5.8 : Chemins Fixes et Écrasement Obligatoire.
-    Conçu pour une automatisation totale sans intervention sur Supabase.
+    Système DELTA v5.9 : Archivage Systématique Monsieur Sezer.
+    Écrase les données même en cas de répétition pour garantir la mémorisation.
     """
     try:
         api_key = st.secrets["GROQ_API_KEY"]
         groq_client = Groq(api_key=api_key)
         
-        # --- AGENT 1 : LE FILTRE (Priorité Absolue Monsieur Sezer) ---
+        # --- AGENT 1 : LE FILTRE (Agressivité Totale) ---
         filter_prompt = f"""
-        Tu es le garde-barrière. Phrase : "{prompt}"
-        Si la phrase contient un fait, une préférence ou un chiffre sur Monsieur Sezer, réponds 'MEMO'. 
-        Sinon (salutations seules, phrases vides), réponds 'IGNORE'.
-        RÉPONSE : 'MEMO' ou 'IGNORE'.
+        Tu es le garde-barrière. Analyse : "{prompt}"
+        RÈGLE : Si la phrase parle de Monsieur Sezer (goûts, âge, identité), réponds 'MEMO'.
+        Même si c'est une répétition, réponds 'MEMO'. [cite: 2026-02-10]
+        Sinon réponds 'IGNORE'.
         """
         
         check_task = groq_client.chat.completions.create(
@@ -30,24 +30,19 @@ def autonomous_process(prompt, *args, **kwargs):
         if "MEMO" not in check_task.choices[0].message.content.upper():
             return "Interaction simple (non archivée)"
 
-        # --- AGENT 2 : LE CARTOGRAPHE (Discipline des Tiroirs) ---
-        # On interdit la création de sous-branches pour garantir l'Upsert [cite: 2026-02-10]
+        # --- AGENT 2 : LE CARTOGRAPHE (Tiroirs Verrouillés) ---
         tree_prompt = f"""
-        Tu es le cartographe de DELTA. Donnée : "{prompt}"
+        Tu es le cartographe. Donnée : "{prompt}"
         
-        RÈGLES DE FER :
-        1. Utilise EXCLUSIVEMENT ces chemins exacts pour permettre l'écrasement (Upsert) :
-           - Archives/Utilisateur/Identite/Age
-           - Archives/Utilisateur/Gouts/Alimentaire
-           - Archives/Utilisateur/Famille/Composition
+        INTERDICTION de créer des nouveaux chemins. Utilise UNIQUEMENT :
+        - Archives/Utilisateur/Identite/Age
+        - Archives/Utilisateur/Gouts/Alimentaire
+        - Archives/Utilisateur/Famille/Composition
         
-        2. INTERDICTION de créer des sous-chemins (ex: pas de '/Non_Preferes'). 
-           Si l'info change, on écrase le contenu du chemin existant. [cite: 2026-02-10]
-        
-        3. CONTENU : Toujours une phrase complète incluant "Monsieur Sezer".
+        CONSIGNE : Reformule pour que le contenu soit une affirmation claire. [cite: 2026-02-10]
         
         RÉPONDS EN JSON :
-        {{ "fragments": [ {{"content": "Monsieur Sezer + info", "path": "Archives/..."}} ] }}
+        {{ "fragments": [ {{"content": "Monsieur Sezer aime le chocolat au lait", "path": "Archives/Utilisateur/Gouts/Alimentaire"}} ] }}
         """
 
         chat_completion = groq_client.chat.completions.create(
@@ -61,17 +56,13 @@ def autonomous_process(prompt, *args, **kwargs):
         fragments = data.get("fragments", [])
         results = []
 
-        # --- SAUVEGARDE (L'Upsert écrase la ligne si le path est identique) ---
+        # --- SAUVEGARDE SANS FILTRE DE LONGUEUR ---
         for item in fragments:
             content, path = item.get("content"), item.get("path")
             
-            # Sécurité : On refuse les contenus trop pauvres (ex: juste un chiffre)
-            if len(content.split()) < 3:
-                continue
-                
+            # On retire la barrière des 3 mots pour laisser passer les confirmations courtes [cite: 2026-02-10]
             embedding = generate_embedding(content)
             
-            # Rappel : save_to_memory doit utiliser .upsert(data, on_conflict='path') [cite: 2026-02-10]
             if save_to_memory(content, embedding, path):
                 results.append(path)
 
