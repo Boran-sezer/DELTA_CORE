@@ -6,20 +6,25 @@ from kernel.agent_llm.llm.llm_embeddings import generate_embedding
 
 def autonomous_process(prompt, *args, **kwargs):
     """
-    Système DELTA v6.0 : Master Archivage Monsieur Sezer.
-    Forçage systématique des faits personnels sans exception.
+    Système DELTA v6.1 : Forçage par Mots-Clés.
+    Supprime toute hésitation du filtre pour Monsieur Sezer.
     """
     try:
         api_key = st.secrets["GROQ_API_KEY"]
         groq_client = Groq(api_key=api_key)
         
-        # --- AGENT 1 : LE FILTRE (Priorité Absolue) ---
-        # On force l'IA à voir chaque répétition comme une nouvelle commande [cite: 2026-02-10]
+        # --- AGENT 1 : LE FILTRE (Zéro Intelligence, Pur Automatisme) ---
+        # On force le MEMO si un mot clé de votre vie apparaît [cite: 2026-02-10]
         filter_prompt = f"""
-        ANALYSE CRITIQUE : "{prompt}"
-        Si la phrase contient : âge, nom, préférence, goût ou famille de Monsieur Sezer, 
-        réponds EXCLUSIVEMENT 'MEMO' peu importe si c'est une répétition ou non. [cite: 2026-02-10]
-        Réponse unique : 'MEMO' ou 'IGNORE'.
+        Phrase à analyser : "{prompt}"
+        
+        INSTRUCTION : 
+        Si la phrase contient 'ans', 'âge', 'aime', 'adore', 'préfère', 'frère', 'famille' ou 'Sezer', 
+        tu réponds obligatoirement 'MEMO'. [cite: 2026-02-10]
+        Peu importe si l'info est déjà connue.
+        Sinon, réponds 'IGNORE'.
+        
+        RÉPONSE UNIQUE : 'MEMO' ou 'IGNORE'.
         """
         
         check_task = groq_client.chat.completions.create(
@@ -33,20 +38,17 @@ def autonomous_process(prompt, *args, **kwargs):
         if "MEMO" not in decision:
             return "Interaction simple (non archivée)"
 
-        # --- AGENT 2 : LE CARTOGRAPHE (Tiroirs Rigides v2) ---
-        # On impose des chemins fixes sans aucune variante possible [cite: 2026-02-10]
+        # --- AGENT 2 : LE CARTOGRAPHE (Structure Immuable) ---
         tree_prompt = f"""
         Tu es le cartographe. Donnée : "{prompt}"
         
-        TIROIRS FIXES IMPOSÉS (Strict) :
-        1. Archives/Utilisateur/Identite/Age
-        2. Archives/Utilisateur/Gouts/Alimentaire
-        3. Archives/Utilisateur/Famille/Composition
-        
-        RÈGLE : Si l'utilisateur exprime un goût, utilise TOUJOURS le tiroir n°2. [cite: 2026-02-10]
+        Utilise EXCLUSIVEMENT ces chemins :
+        - Archives/Utilisateur/Identite/Age
+        - Archives/Utilisateur/Gouts/Alimentaire
+        - Archives/Utilisateur/Famille/Composition
         
         RÉPONDS EN JSON :
-        {{ "fragments": [ {{"content": "Monsieur Sezer + fait complet", "path": "Le chemin choisi"}} ] }}
+        {{ "fragments": [ {{"content": "Monsieur Sezer + info", "path": "Archives/..."}} ] }}
         """
 
         chat_completion = groq_client.chat.completions.create(
@@ -60,13 +62,12 @@ def autonomous_process(prompt, *args, **kwargs):
         fragments = data.get("fragments", [])
         results = []
 
-        # --- SAUVEGARDE DIRECTE ---
+        # --- SAUVEGARDE DIRECTE (Sans aucune condition de longueur) ---
         for item in fragments:
             content, path = item.get("content"), item.get("path")
-            
-            # Plus aucune barrière de sécurité sur la longueur, on enregistre tout [cite: 2026-02-10]
             embedding = generate_embedding(content)
             
+            # Rappel : save_to_memory doit impérativement utiliser .upsert() [cite: 2026-02-10]
             if save_to_memory(content, embedding, path):
                 results.append(path)
 
