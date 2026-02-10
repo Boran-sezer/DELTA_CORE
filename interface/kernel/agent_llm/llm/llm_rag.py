@@ -6,8 +6,8 @@ from kernel.agent_llm.llm.llm_embeddings import generate_embedding
 
 def autonomous_process(prompt, *args, **kwargs):
     """
-    Système DELTA v5.0 : Archivage en Arbre Récursif Infini.
-    Génère des branches et sous-branches dynamiques selon le contexte.
+    Système DELTA v5.1 : Archivage Arborescent avec Contexte Explicite.
+    Force l'inclusion du sujet dans chaque fragment pour garantir la réussite du RAG.
     """
     try:
         api_key = st.secrets["GROQ_API_KEY"]
@@ -23,24 +23,23 @@ def autonomous_process(prompt, *args, **kwargs):
         if "IGNORE" in check_task.choices[0].message.content.upper():
             return "Interaction simple (non archivée)"
 
-        # --- AGENT 2 : LE CARTOGRAPHE (Branches infinies) ---
-        # Utilisation du 70b pour une logique de ramification parfaite. [cite: 2026-02-10]
+        # --- AGENT 2 : LE CARTOGRAPHE (Fusion Contexte + Branche) ---
         tree_prompt = f"""
         Tu es le cartographe de l'Arbre de Connaissance de Monsieur Sezer.
         Donnée : "{prompt}"
         
         TON RÔLE : 
-        1. Identifie le sujet principal.
-        2. Crée une branche logique (ex: Archives/Social/Famille/Frere/Bedran).
-        3. Si l'info est précise, crée une sous-sous-branche (ex: .../Bedran/Age).
+        1. Identifie le sujet (ex: Bedran).
+        2. Crée une branche précise (ex: Archives/Social/Famille/Frere/Bedran/Alimentation).
         
-        RÈGLES D'OR :
-        - Profondeur infinie autorisée selon le besoin. [cite: 2026-02-10]
-        - Une branche = Une fiche complète (Sujet + Action + Info). [cite: 2026-02-10]
-        - Ignore les pollutions (mots isolés, chiffres seuls).
+        RÈGLE D'OR D'INTELLIGENCE :
+        - Chaque 'content' doit être AUTONOME. [cite: 2026-02-10]
+        - RE-INJECTE TOUJOURS le sujet dans la phrase. [cite: 2026-02-10]
+        - INTERDICTION de phrases sans sujet comme "Aime la pizza".
+        - EXEMPLE : "Bedran aime la pizza et déteste les oignons."
         
         RÉPONDS UNIQUEMENT EN JSON :
-        {{ "fragments": [ {{"content": "Description riche du nœud", "path": "Archives/Branche/SousBranche/..."}} ] }}
+        {{ "fragments": [ {{"content": "Sujet + Verbe + Information", "path": "Archives/..."}} ] }}
         """
 
         chat_completion = groq_client.chat.completions.create(
@@ -58,12 +57,11 @@ def autonomous_process(prompt, *args, **kwargs):
         for item in fragments:
             content, path = item.get("content"), item.get("path")
             
-            # Protection contre les fragments trop courts (pollution type ID 67)
-            if len(content.split()) < 3: 
+            # Protection contre les fragments inutiles
+            if len(content.split()) < 4: 
                 continue
                 
             embedding = generate_embedding(content)
-            # Note : Assurez-vous que save_to_memory gère l'UPSERT sur le champ 'path'
             if save_to_memory(content, embedding, path):
                 results.append(path)
 
