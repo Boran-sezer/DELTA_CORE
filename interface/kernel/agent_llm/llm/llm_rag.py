@@ -6,15 +6,15 @@ from kernel.agent_llm.llm.llm_embeddings import generate_embedding
 
 def autonomous_process(prompt, *args, **kwargs):
     """
-    Système DELTA v4.0 : Archivage par Synthèse d'Entités.
-    Empêche la fragmentation et fusionne les faits.
+    Système DELTA v5.0 : Archivage en Arbre Récursif Infini.
+    Génère des branches et sous-branches dynamiques selon le contexte.
     """
     try:
         api_key = st.secrets["GROQ_API_KEY"]
         groq_client = Groq(api_key=api_key)
         
-        # --- AGENT 1 : LE FILTRE (Bloque la pollution) ---
-        filter_prompt = f"Analyse : '{prompt}'. Si c'est une info sur la vie (nom, âge, lien), réponds 'MEMO'. Sinon 'IGNORE'."
+        # --- AGENT 1 : LE FILTRE (Identification des faits) ---
+        filter_prompt = f"Analyse : '{prompt}'. Si c'est une info sur la vie, une personne ou un fait, réponds 'MEMO'. Sinon 'IGNORE'."
         check_task = groq_client.chat.completions.create(
             messages=[{"role": "user", "content": filter_prompt}],
             model="llama-3.1-8b-instant"
@@ -23,26 +23,28 @@ def autonomous_process(prompt, *args, **kwargs):
         if "IGNORE" in check_task.choices[0].message.content.upper():
             return "Interaction simple (non archivée)"
 
-        # --- AGENT 2 : L'ARCHIVISTE (Synthèse complète) ---
-        # On utilise le 70b pour une rédaction parfaite des fiches. [cite: 2026-02-10]
-        synth_prompt = f"""
-        Tu es l'archiviste de Monsieur Sezer. Transforme ce texte en FICHES D'IDENTITÉ complètes : "{prompt}"
+        # --- AGENT 2 : LE CARTOGRAPHE (Branches infinies) ---
+        # Utilisation du 70b pour une logique de ramification parfaite. [cite: 2026-02-10]
+        tree_prompt = f"""
+        Tu es le cartographe de l'Arbre de Connaissance de Monsieur Sezer.
+        Donnée : "{prompt}"
+        
+        TON RÔLE : 
+        1. Identifie le sujet principal.
+        2. Crée une branche logique (ex: Archives/Social/Famille/Frere/Bedran).
+        3. Si l'info est précise, crée une sous-sous-branche (ex: .../Bedran/Age).
         
         RÈGLES D'OR :
-        1. UNE LIGNE = UNE PERSONNE. Fusionne le nom, l'âge et le lien (ex: "Bedran est le grand frère de Sezer et a 26 ans").
-        2. NE DÉCOUPE PAS les faits en petits morceaux. [cite: 2026-02-10]
-        3. IGNORE les chiffres seuls comme "7" ou les mots isolés.
-        
-        STRUCTURE :
-        - 'Social/Famille/[Nom]'
-        - 'Utilisateur/Identite' (Si c'est Sezer)
+        - Profondeur infinie autorisée selon le besoin. [cite: 2026-02-10]
+        - Une branche = Une fiche complète (Sujet + Action + Info). [cite: 2026-02-10]
+        - Ignore les pollutions (mots isolés, chiffres seuls).
         
         RÉPONDS UNIQUEMENT EN JSON :
-        {{ "fragments": [ {{"content": "La fiche complète ici", "path": "Le chemin ici"}} ] }}
+        {{ "fragments": [ {{"content": "Description riche du nœud", "path": "Archives/Branche/SousBranche/..."}} ] }}
         """
 
         chat_completion = groq_client.chat.completions.create(
-            messages=[{"role": "user", "content": synth_prompt}],
+            messages=[{"role": "user", "content": tree_prompt}],
             model="llama-3.3-70b-versatile",
             temperature=0,
             response_format={ "type": "json_object" }
@@ -56,15 +58,16 @@ def autonomous_process(prompt, *args, **kwargs):
         for item in fragments:
             content, path = item.get("content"), item.get("path")
             
-            # Sécurité : On ignore les déchets (ID 67 de votre capture)
-            if len(content.split()) < 4: 
+            # Protection contre les fragments trop courts (pollution type ID 67)
+            if len(content.split()) < 3: 
                 continue
                 
             embedding = generate_embedding(content)
+            # Note : Assurez-vous que save_to_memory gère l'UPSERT sur le champ 'path'
             if save_to_memory(content, embedding, path):
                 results.append(path)
 
-        return f"Synthèse réussie : {', '.join(set(results))}" if results else "Pollution ignorée."
+        return f"Arbre mis à jour : {', '.join(set(results))}" if results else "Branche rejetée (pollution)."
 
     except Exception as e:
         return f"Erreur Système : {str(e)}"
