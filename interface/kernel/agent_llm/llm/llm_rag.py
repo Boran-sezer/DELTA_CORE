@@ -6,26 +6,31 @@ from kernel.agent_llm.llm.llm_embeddings import generate_embedding
 def autonomous_process(prompt, *args, **kwargs):
     """
     Système de tri intelligent de DELTA.
-    Utilise le nouveau modèle Llama 3.3 pour éviter l'erreur 400.
+    Version 'Anti-Confusion' pour Monsieur Sezer.
     """
     try:
-        # 1. Récupération du client Groq (via argument ou Secrets)
+        # 1. Connexion au client Groq
         groq_client = kwargs.get('groq_client')
         if groq_client is None:
             api_key = st.secrets["GROQ_API_KEY"]
             groq_client = Groq(api_key=api_key)
         
-        # 2. Détermination du dossier (Classification)
-        # CHANGEMENT : Utilisation de llama-3.3-70b-versatile
+        # 2. IA Aiguilleur - Instructions de tri renforcées
         classification_prompt = f"""
-        Tu es l'aiguilleur de DELTA. Analyse cette phrase : "{prompt}"
-        Choisis UNIQUEMENT un dossier de rangement parmi :
+        Tu es l'expert en archivage de DELTA. Ton rôle est de classer cette info : "{prompt}"
+        
+        RÈGLES DE TRI STRICTES :
+        - 'Utilisateur/Identite' : Si l'info parle DIRECTEMENT de Monsieur Sezer (nom, âge de Sezer, identité).
+        - 'Utilisateur/Preferences' : Si l'info parle des goûts de Monsieur Sezer (ce qu'il aime/déteste).
+        - 'Social/Amis' : Si l'info mentionne une TIERCE PERSONNE (ami, pote, nom comme Jules, Paul, etc.).
+        - 'Projets/Delta' : Si l'info parle de code, de développement ou du système DELTA lui-même.
+        
+        Réponds UNIQUEMENT le nom du dossier parmi :
         - Utilisateur/Identite
         - Utilisateur/Preferences
         - Social/Amis
         - Projets/Delta
         - Divers
-        Réponds UNIQUEMENT le nom du dossier.
         """
         
         chat_completion = groq_client.chat.completions.create(
@@ -35,7 +40,10 @@ def autonomous_process(prompt, *args, **kwargs):
         
         smart_path = chat_completion.choices[0].message.content.strip()
         
-        # 3. Génération de l'embedding et Sauvegarde
+        # Nettoyage de la réponse (au cas où l'IA mettrait des guillemets)
+        smart_path = smart_path.replace('"', '').replace("'", "")
+        
+        # 3. Génération de l'embedding et Sauvegarde Supabase
         embedding = generate_embedding(prompt)
         success = save_to_memory(prompt, embedding, smart_path)
         
