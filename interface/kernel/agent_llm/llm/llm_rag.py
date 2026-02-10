@@ -6,7 +6,7 @@ from kernel.agent_llm.llm.llm_embeddings import generate_embedding
 def autonomous_process(prompt, *args, **kwargs):
     """
     Système de tri intelligent de DELTA.
-    Accepte n'importe quel argument (*args, **kwargs) pour éviter les erreurs de conflit.
+    Utilise le nouveau modèle Llama 3.3 pour éviter l'erreur 400.
     """
     try:
         # 1. Récupération du client Groq (via argument ou Secrets)
@@ -16,6 +16,7 @@ def autonomous_process(prompt, *args, **kwargs):
             groq_client = Groq(api_key=api_key)
         
         # 2. Détermination du dossier (Classification)
+        # CHANGEMENT : Utilisation de llama-3.3-70b-versatile
         classification_prompt = f"""
         Tu es l'aiguilleur de DELTA. Analyse cette phrase : "{prompt}"
         Choisis UNIQUEMENT un dossier de rangement parmi :
@@ -29,14 +30,13 @@ def autonomous_process(prompt, *args, **kwargs):
         
         chat_completion = groq_client.chat.completions.create(
             messages=[{"role": "user", "content": classification_prompt}],
-            model="llama3-8b-8192",
+            model="llama-3.3-70b-versatile",
         )
         
         smart_path = chat_completion.choices[0].message.content.strip()
         
         # 3. Génération de l'embedding et Sauvegarde
         embedding = generate_embedding(prompt)
-        # Utilisation de la table 'archives' identifiée dans votre base
         success = save_to_memory(prompt, embedding, smart_path)
         
         if success:
