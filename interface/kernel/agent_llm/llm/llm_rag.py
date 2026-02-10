@@ -6,29 +6,30 @@ from kernel.agent_llm.llm.llm_embeddings import generate_embedding
 
 def autonomous_process(prompt, *args, **kwargs):
     """
-    Système DELTA v7.6 : Noyau Jarvis Final.
-    Validation par Monsieur Sezer (Boran) le 10/02/2026.
+    Système DELTA v7.7 : Protocol Jarvis.
+    Verrouillage strict des sujets pour empêcher les mélanges Boran/Bedran.
     """
     try:
         api_key = st.secrets["GROQ_API_KEY"]
         groq_client = Groq(api_key=api_key)
         
-        # --- AGENT 1 : DÉTECTION DE FAITS ---
-        keywords = ["ans", "âge", "aime", "chocolat", "frère", "sœur", "bedran", "zilan", "boran", "pardon"]
+        # --- AGENT 1 : DÉTECTION ---
+        keywords = ["ans", "âge", "aime", "chocolat", "frère", "bedran", "zilan", "boran", "pardon"]
         if not any(word in prompt.lower() for word in keywords):
             return "Interaction simple (non archivée)"
 
-        # --- AGENT 2 : ARCHIVAGE NOMINAL ---
+        # --- AGENT 2 : CARTOGRAPHIE SÉLECTIVE ---
+        # On force l'IA à choisir UN SEUL chemin par fait pour éviter les doublons [cite: 2026-02-10]
         tree_prompt = f"""
-        Donnée utilisateur : "{prompt}"
-        RÈGLE : Utilise TOUJOURS le prénom (Boran, Bedran, Zilan) dans le contenu.
+        Donnée : "{prompt}"
+        RÈGLE DE SÉPARATION :
+        1. Si l'utilisateur parle de lui (Je/Moi/Pardon) -> Archives/Utilisateur/Gouts/Alimentaire
+        2. Si l'utilisateur parle de son frère (Lui/Bedran) -> Archives/Social/Famille/Bedran/Gouts
         
-        STRUCTURE :
-        - Moi/Je -> Archives/Utilisateur/Identite/Age ou /Gouts/Alimentaire
-        - Bedran -> Archives/Social/Famille/Bedran/Age ou /Gouts
+        IMPORTANT : Ne crée jamais deux fragments pour la même info. Choisis le bon sujet. [cite: 2026-02-10]
         
         RÉPONDS UNIQUEMENT EN JSON :
-        {{ "fragments": [ {{"content": "Boran [Action] [Objet]", "path": "Archives/..."}} ] }}
+        {{ "fragments": [ {{"content": "Boran aime le chocolat au lait", "path": "Archives/Utilisateur/Gouts/Alimentaire"}} ] }}
         """
 
         chat_completion = groq_client.chat.completions.create(
@@ -39,13 +40,11 @@ def autonomous_process(prompt, *args, **kwargs):
         )
         
         data = json.loads(chat_completion.choices[0].message.content)
-        fragments = data.get("fragments", [])[:2]
+        fragments = data.get("fragments", [])[:1] # Limite stricte à 1 fragment pour éviter le mélange [cite: 2026-02-10]
         results = []
 
         for item in fragments:
             content, path = item.get("content"), item.get("path")
-            
-            # Sauvegarde forcée sans filtre restrictif
             embedding = generate_embedding(content)
             if save_to_memory(content, embedding, path):
                 results.append(path)
