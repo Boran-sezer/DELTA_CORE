@@ -6,23 +6,18 @@ from kernel.agent_llm.llm.llm_embeddings import generate_embedding
 
 def autonomous_process(prompt, *args, **kwargs):
     """
-    Système DELTA v5.7 : Archivage Forcé Monsieur Sezer.
-    Identifie, classifie et écrase les anciennes données (Upsert).
+    Système DELTA v5.8 : Chemins Fixes et Écrasement Obligatoire.
+    Conçu pour une automatisation totale sans intervention sur Supabase.
     """
     try:
         api_key = st.secrets["GROQ_API_KEY"]
         groq_client = Groq(api_key=api_key)
         
-        # --- AGENT 1 : LE FILTRE (Version Armure Monsieur Sezer) ---
-        # Zéro tolérance à l'hésitation pour vos informations personnelles [cite: 2026-02-10]
+        # --- AGENT 1 : LE FILTRE (Priorité Absolue Monsieur Sezer) ---
         filter_prompt = f"""
-        Tu es le garde-barrière de DELTA. Phrase : "{prompt}"
-        
-        RÈGLE ABSOLUE :
-        - Si la phrase contient un chiffre (âge), une préférence (chocolat), un nom ou un fait sur la vie de Monsieur Sezer, réponds EXCLUSIVEMENT 'MEMO'. [cite: 2026-02-10]
-        - Ne réfléchis pas à l'utilité. Si c'est un fait sur l'utilisateur : 'MEMO'. [cite: 2026-02-10]
-        - Uniquement si c'est une formule de politesse vide (Salut, Ça va), réponds 'IGNORE'.
-        
+        Tu es le garde-barrière. Phrase : "{prompt}"
+        Si la phrase contient un fait, une préférence ou un chiffre sur Monsieur Sezer, réponds 'MEMO'. 
+        Sinon (salutations seules, phrases vides), réponds 'IGNORE'.
         RÉPONSE : 'MEMO' ou 'IGNORE'.
         """
         
@@ -32,26 +27,27 @@ def autonomous_process(prompt, *args, **kwargs):
             temperature=0
         )
         
-        decision = check_task.choices[0].message.content.upper()
-        
-        if "MEMO" not in decision:
+        if "MEMO" not in check_task.choices[0].message.content.upper():
             return "Interaction simple (non archivée)"
 
-        # --- AGENT 2 : LE CARTOGRAPHE (Zéro Résidu / Chemins Fixes) ---
-        # Force l'utilisation de chemins profonds pour l'Upsert
+        # --- AGENT 2 : LE CARTOGRAPHE (Discipline des Tiroirs) ---
+        # On interdit la création de sous-branches pour garantir l'Upsert [cite: 2026-02-10]
         tree_prompt = f"""
         Tu es le cartographe de DELTA. Donnée : "{prompt}"
         
-        RÈGLES D'AUTOMATISATION :
-        1. Sujet : Utilise "Monsieur Sezer" par défaut. [cite: 2026-02-08]
-        2. INTERDICTION d'utiliser des chemins courts (ex: Archives/Utilisateur/Identite).
-        3. STRUCTURES OBLIGATOIRES (pour permettre l'Upsert) :
-           - Âge -> Archives/Utilisateur/Identite/Age
-           - Gouts -> Archives/Utilisateur/Gouts/Alimentaire
-           - Famille -> Archives/Utilisateur/Famille/Composition
+        RÈGLES DE FER :
+        1. Utilise EXCLUSIVEMENT ces chemins exacts pour permettre l'écrasement (Upsert) :
+           - Archives/Utilisateur/Identite/Age
+           - Archives/Utilisateur/Gouts/Alimentaire
+           - Archives/Utilisateur/Famille/Composition
         
-        RÉPONDS UNIQUEMENT EN JSON :
-        {{ "fragments": [ {{"content": "Monsieur Sezer + info complète", "path": "Archives/..."}} ] }}
+        2. INTERDICTION de créer des sous-chemins (ex: pas de '/Non_Preferes'). 
+           Si l'info change, on écrase le contenu du chemin existant. [cite: 2026-02-10]
+        
+        3. CONTENU : Toujours une phrase complète incluant "Monsieur Sezer".
+        
+        RÉPONDS EN JSON :
+        {{ "fragments": [ {{"content": "Monsieur Sezer + info", "path": "Archives/..."}} ] }}
         """
 
         chat_completion = groq_client.chat.completions.create(
@@ -65,21 +61,21 @@ def autonomous_process(prompt, *args, **kwargs):
         fragments = data.get("fragments", [])
         results = []
 
-        # --- SAUVEGARDE & UPSERT ---
+        # --- SAUVEGARDE (L'Upsert écrase la ligne si le path est identique) ---
         for item in fragments:
             content, path = item.get("content"), item.get("path")
             
-            # Sécurité anti-résidus : on refuse les chemins trop courts
-            if len(path.split('/')) < 4:
+            # Sécurité : On refuse les contenus trop pauvres (ex: juste un chiffre)
+            if len(content.split()) < 3:
                 continue
                 
             embedding = generate_embedding(content)
             
-            # save_to_memory doit utiliser .upsert(data, on_conflict='path') [cite: 2026-02-10]
+            # Rappel : save_to_memory doit utiliser .upsert(data, on_conflict='path') [cite: 2026-02-10]
             if save_to_memory(content, embedding, path):
                 results.append(path)
 
-        return f"Arbre mis à jour : {', '.join(set(results))}" if results else "Branche rejetée (chemin imprécis)."
+        return f"Arbre mis à jour : {', '.join(set(results))}" if results else "Branche rejetée."
 
     except Exception as e:
         return f"Erreur Système : {str(e)}"
