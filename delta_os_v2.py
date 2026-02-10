@@ -1,5 +1,5 @@
 # ================================================================
-# DELTA OS — J.A.R.V.I.S. COGNITIVE SYSTEM (FULL VERSION)
+# DELTA OS — J.A.R.V.I.S. COGNITIVE SYSTEM (STABLE FINAL)
 # ================================================================
 
 import streamlit as st
@@ -7,7 +7,6 @@ from groq import Groq
 from supabase import create_client, Client
 import streamlit.components.v1 as components
 import json
-import time
 from datetime import datetime
 import pytz
 
@@ -44,6 +43,8 @@ body {
 
 class JARVISCognitiveSystem:
 
+    VERSION = "2.2"
+
     def __init__(self):
         self.supabase: Client = create_client(
             st.secrets["supabase"]["url"],
@@ -51,7 +52,6 @@ class JARVISCognitiveSystem:
         )
         self.groq = Groq(api_key=st.secrets["groq"]["api_key"])
         self.owner = "boran"
-
         self._semantic_cache = {}
 
     # ============================================================
@@ -63,7 +63,7 @@ class JARVISCognitiveSystem:
         now = datetime.now(tz)
         return {
             "date": now.strftime("%Y-%m-%d"),
-            "time": now.strftime("%H:%M"),
+            "time": now.strftime("%H:%M:%S"),
             "weekday": now.strftime("%A")
         }
 
@@ -73,9 +73,8 @@ class JARVISCognitiveSystem:
 
     def is_memory_worthy(self, analysis: dict) -> bool:
         importance = analysis.get("importance_score", 0)
-        if importance < 0.6 and not analysis.get("semantic_facts"):
-            return False
-        return True
+        has_facts = bool(analysis.get("semantic_facts"))
+        return importance >= 0.6 or has_facts
 
     # ============================================================
     # SEMANTIC MEMORY (CUMULATIVE)
@@ -98,7 +97,7 @@ class JARVISCognitiveSystem:
                 current = json.loads(row["fact"])
                 if fact not in current:
                     current.append(fact)
-            except:
+            except Exception:
                 current = [row["fact"], fact]
 
             self.supabase.table("jarvis_semantic_memory").update({
@@ -134,7 +133,7 @@ class JARVISCognitiveSystem:
         for r in res.data:
             try:
                 facts[r["fact_type"]] = json.loads(r["fact"])
-            except:
+            except Exception:
                 facts[r["fact_type"]] = r["fact"]
 
         self._semantic_cache[entity] = facts
@@ -155,8 +154,8 @@ class JARVISCognitiveSystem:
                     accuracy: pos.coords.accuracy
                 });
             },
-            (err) => {
-                document.body.innerText = JSON.stringify({error: err.message});
+            () => {
+                document.body.innerText = "";
             }
         );
         </script>
@@ -176,7 +175,7 @@ DATE : {dt['date']}
 HEURE : {dt['time']}
 JOUR : {dt['weekday']}
 
-RÈGLES ABSOLUES :
+RÈGLES STRICTES :
 - Ne mémorise PAS les questions simples
 - Ne mémorise PAS les hésitations
 - Reformule toujours positivement
@@ -188,9 +187,7 @@ MESSAGE :
 RÉPONDS EN JSON STRICT :
 
 {{
- "semantic_facts": [
-   {{"entity":"boran","fact_type":"preference","fact":"chocolat","confidence":0.9}}
- ],
+ "semantic_facts": [],
  "importance_score": 0.0
 }}
 """
@@ -206,7 +203,7 @@ RÉPONDS EN JSON STRICT :
                 response_format={"type": "json_object"}
             )
             return json.loads(r.choices[0].message.content)
-        except:
+        except Exception:
             return {"semantic_facts": [], "importance_score": 0.0}
 
     # ============================================================
@@ -215,10 +212,8 @@ RÉPONDS EN JSON STRICT :
 
     def process_and_learn(self, message: str):
         analysis = self.analyze_message(message)
-
         if not self.is_memory_worthy(analysis):
             return
-
         for fact in analysis.get("semantic_facts", []):
             self.store_semantic_fact(
                 fact["entity"],
@@ -228,14 +223,22 @@ RÉPONDS EN JSON STRICT :
             )
 
 # ================================================================
-# INIT
+# SAFE INIT (ANTI-ATTRIBUTEERROR)
 # ================================================================
 
-if "jarvis" not in st.session_state:
+if (
+    "jarvis" not in st.session_state
+    or not hasattr(st.session_state.jarvis, "get_datetime_context")
+    or getattr(st.session_state.jarvis, "VERSION", None) != JARVISCognitiveSystem.VERSION
+):
     st.session_state.jarvis = JARVISCognitiveSystem()
 
 jarvis = st.session_state.jarvis
 dt = jarvis.get_datetime_context()
+
+# ================================================================
+# UI
+# ================================================================
 
 st.markdown("# 🔷 J.A.R.V.I.S.")
 st.caption(f"{dt['weekday']} — {dt['date']} — {dt['time']}")
@@ -245,12 +248,10 @@ st.caption(f"{dt['weekday']} — {dt['date']} — {dt['time']}")
 # ================================================================
 
 if "messages" not in st.session_state:
-    st.session_state.messages = [
-        {
-            "role": "assistant",
-            "content": "Tous les systèmes sont opérationnels, Monsieur. Que puis-je faire pour vous ?"
-        }
-    ]
+    st.session_state.messages = [{
+        "role": "assistant",
+        "content": "Tous les systèmes sont opérationnels, Monsieur."
+    }]
 
 for m in st.session_state.messages:
     with st.chat_message(m["role"]):
@@ -260,10 +261,9 @@ if user_input := st.chat_input("Monsieur ?"):
 
     with st.chat_message("user"):
         st.markdown(user_input)
-
     st.session_state.messages.append({"role": "user", "content": user_input})
 
-    # Geolocation (silent)
+    # Silent geolocation
     loc_raw = jarvis.get_browser_location()
     try:
         loc = json.loads(loc_raw)
@@ -274,7 +274,7 @@ if user_input := st.chat_input("Monsieur ?"):
                 f"lat:{loc['lat']}, lon:{loc['lon']}",
                 confidence=0.6
             )
-    except:
+    except Exception:
         pass
 
     jarvis.process_and_learn(user_input)
@@ -287,15 +287,14 @@ HEURE : {dt['time']}
 JOUR : {dt['weekday']}
 
 PERSONNALITÉ :
-- Calme
 - Très intelligent
+- Calme
 - Légèrement ironique
 - Loyal
 - Concis
-- Parle comme JARVIS de Tony Stark
+- Style JARVIS de Tony Stark
 
-Utilise la mémoire naturellement.
-Ne dis jamais "d'après ma mémoire".
+Ne mentionne jamais explicitement la mémoire.
 """
 
     response = jarvis.groq.chat.completions.create(
